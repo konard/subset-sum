@@ -239,6 +239,10 @@ fn print_complexity_summary() {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("{:<25} {:<20} {:<20}", "Algorithm", "Time", "Space");
     println!("{:-<25} {:-<20} {:-<20}", "", "", "");
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "smart_brute_force", "O(2^n) optimized", "O(n)"
+    );
     println!("{:<25} {:<20} {:<20}", "brute_force", "O(2^n)", "O(n)");
     println!("{:<25} {:<20} {:<20}", "backtracking", "O(2^n)", "O(n)");
     println!(
@@ -269,6 +273,7 @@ fn print_complexity_summary() {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("KEY INSIGHTS");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("• Smart Brute Force: Optimized with power-of-two detection");
     println!("• Meet in Middle: Best for moderate n (25-40), any target size");
     println!("• Dynamic Programming: Best when target value is small");
     println!("• Backtracking Pruned: Best for small targets with positive numbers");
