@@ -1,4 +1,6 @@
 use std::time::Instant;
+use rand::Rng;
+use itertools::Itertools;
 
 // ============================================================================
 // 1. BRUTE FORCE - O(2^n)
@@ -31,23 +33,28 @@ fn brute_force(numbers: &[u64], target: u64) -> (Option<Vec<u64>>, u64) {
 
 
 fn smart_brute_force(numbers: &[u64], target: u64) -> (Option<Vec<u64>>, u64) {
-    let n = numbers.len();
+    let mut sorted_numbers = numbers
+            .iter()
+            .cloned()
+            .filter(|&x| x <= target) // filter out numbers greater than target
+            .sorted()
+            .collect::<Vec<u64>>();
 
-    let sorted_numbers = {
-        let mut nums = numbers.to_vec();
-        nums.sort();
-        nums
-    };
+    let n = sorted_numbers.len();
 
     let total_sum: u64 = sorted_numbers.iter().sum();
 
     let min = sorted_numbers[0];
     let max = sorted_numbers[n - 1];
 
+    println!("Filtered and sorted numbers: {:?}", sorted_numbers);
     println!("Minimum number: {}", min);
     println!("Maximum number: {}", max);
     println!("Total sum of numbers: {}", total_sum);
 
+    if (max == target) {
+        return (Some(vec![max]), 1);
+    }
     if target < min || target > total_sum {
         return (None, 0);
     }
@@ -162,6 +169,19 @@ where
     (valid, steps, elapsed)
 }
 
+fn make_random_number(max_value: u64) -> u64 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(1..=max_value)
+}
+
+fn make_unique_random_numbers(n: usize, max_value: u64) -> Vec<u64> {
+    let mut numbers = std::collections::HashSet::new();
+    while numbers.len() < n {
+        numbers.insert(make_random_number(max_value));
+    }
+    numbers.into_iter().collect()
+}
+
 fn main() {
     println!("╔══════════════════════════════════════════════════════════════════╗");
     println!("║           SUBSET SUM ALGORITHM COMPARISON                        ║");
@@ -171,10 +191,11 @@ fn main() {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("TEST 1: Small example (n=10, has solution)");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    let numbers_original = vec![3, 7, 1, 8, 4, 12, 5, 6, 9, 2];
+    // let numbers_original = vec![3, 7, 1, 8, 4, 12, 5, 6, 9, 2];
+    let numbers_original = make_unique_random_numbers(200, 200);
     let mut numbers_sorted = numbers_original.clone();
     numbers_sorted.sort();
-    let target = 15;
+    let target = make_random_number(200);
     println!("Numbers: {:?}", numbers_sorted);
 
     for &number in &numbers_sorted {
