@@ -1,0 +1,294 @@
+//! Brute force algorithms for the subset sum problem.
+
+use crate::{verbose_log, AlgorithmResult};
+
+// ============================================================================
+// 1. SMART BRUTE FORCE - O(2^n) but with optimizations
+// konard's algorithm with power-of-two optimization and early exits
+// ============================================================================
+
+/// Smart brute force subset sum algorithm.
+///
+/// This algorithm (by konard) includes several optimizations:
+/// - Filters out numbers greater than target
+/// - Sorts numbers for efficient processing
+/// - Special case: if target is a single number in set, returns immediately
+/// - Special case: if target can be built from available powers of two, returns immediately
+/// - Falls back to brute force for general case
+///
+/// # Arguments
+///
+/// * `numbers` - Slice of natural numbers to search through
+/// * `target` - Target sum to find
+/// * `verbose` - Enable verbose logging output
+///
+/// # Returns
+///
+/// `AlgorithmResult` containing the solution (if found) and step count
+///
+/// # Time Complexity
+///
+/// O(2^n) worst case, but with multiple early exit conditions
+///
+/// # Examples
+///
+/// ```
+/// use subset_sum::smart_brute_force;
+///
+/// let numbers = vec![3, 7, 1, 8, 4];
+/// let result = smart_brute_force(&numbers, 15, false);
+/// assert!(result.solution.is_some());
+/// ```
+#[must_use]
+pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+    if numbers.is_empty() {
+        verbose_log!(verbose, "[Smart Brute Force] Empty input");
+        return AlgorithmResult::new(if target == 0 { Some(vec![]) } else { None }, 0);
+    }
+
+    // Filter and sort numbers
+    let mut sorted_numbers: Vec<u64> = numbers
+        .iter()
+        .copied()
+        .filter(|&x| x >= 1 && x <= target)
+        .collect();
+    sorted_numbers.sort_unstable();
+
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] Filtered and sorted numbers: {:?}",
+        sorted_numbers
+    );
+
+    if sorted_numbers.is_empty() {
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] No valid numbers after filtering"
+        );
+        return AlgorithmResult::new(if target == 0 { Some(vec![]) } else { None }, 0);
+    }
+
+    let n = sorted_numbers.len();
+    let total_sum: u64 = sorted_numbers.iter().sum();
+
+    let min = sorted_numbers[0];
+    let max = sorted_numbers[n - 1];
+
+    verbose_log!(verbose, "[Smart Brute Force] Minimum number: {}", min);
+    verbose_log!(verbose, "[Smart Brute Force] Maximum number: {}", max);
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] Total sum of numbers: {}",
+        total_sum
+    );
+
+    // Special case: max equals target
+    if max == target {
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Max equals target, returning [{}]",
+            max
+        );
+        return AlgorithmResult::new(Some(vec![max]), 1);
+    }
+
+    // Early exit: target impossible
+    if target < min || target > total_sum {
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Target impossible (min={}, max_sum={})",
+            min,
+            total_sum
+        );
+        return AlgorithmResult::new(None, 0);
+    }
+
+    // Check if target is 0
+    if target == 0 {
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Target is 0, returning empty subset"
+        );
+        return AlgorithmResult::new(Some(vec![]), 0);
+    }
+
+    // Build bitmap of existing powers of two
+    let mut existing_powers_of_two: u64 = 0;
+    for &number in &sorted_numbers {
+        if number.is_power_of_two() && number.trailing_zeros() < 64 {
+            existing_powers_of_two |= 1 << number.trailing_zeros();
+        }
+    }
+
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] Existing powers of two (binary): {:064b}",
+        existing_powers_of_two
+    );
+
+    let missing_powers_of_two = !existing_powers_of_two;
+    let powers_of_two_missing_for_target = missing_powers_of_two & target;
+
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] Missing powers of two (binary): {:064b}",
+        missing_powers_of_two
+    );
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] Powers of two missing for target (binary): {:064b}",
+        powers_of_two_missing_for_target
+    );
+
+    // If we can build target from available powers of two
+    if powers_of_two_missing_for_target == 0 {
+        let mut subset = Vec::new();
+        for i in 0..64 {
+            if target & (1 << i) != 0 && existing_powers_of_two & (1 << i) != 0 {
+                let power_of_two = 1u64 << i;
+                subset.push(power_of_two);
+            }
+        }
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Built target from powers of two: {:?}",
+            subset
+        );
+        return AlgorithmResult::new(Some(subset), 0);
+    }
+
+    // Fall back to brute force
+    let mut steps: u64 = 0;
+
+    // Limit to 63 bits to avoid overflow
+    if n > 63 {
+        verbose_log!(verbose, "[Smart Brute Force] Too many numbers (max 63)");
+        return AlgorithmResult::new(None, steps);
+    }
+
+    let total_subsets = 1u64 << n;
+    for mask in 0..total_subsets {
+        steps += 1;
+
+        let mut sum: u64 = 0;
+        let mut subset = Vec::new();
+
+        for i in 0..n {
+            if mask & (1 << i) != 0 {
+                sum = sum.saturating_add(sorted_numbers[i]);
+                subset.push(sorted_numbers[i]);
+            }
+        }
+
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Step {}: mask={:b}, subset={:?}, sum={}",
+            steps,
+            mask,
+            subset,
+            sum
+        );
+
+        if sum == target {
+            verbose_log!(verbose, "[Smart Brute Force] Found solution: {:?}", subset);
+            return AlgorithmResult::new(Some(subset), steps);
+        }
+    }
+
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] No solution found after {} steps",
+        steps
+    );
+    AlgorithmResult::new(None, steps)
+}
+
+// ============================================================================
+// 2. BRUTE FORCE - O(2^n)
+// Try all possible subsets using bitmask
+// ============================================================================
+
+/// Brute force subset sum algorithm.
+///
+/// Tries all possible subsets using bitmask enumeration.
+///
+/// # Arguments
+///
+/// * `numbers` - Slice of natural numbers to search through
+/// * `target` - Target sum to find
+/// * `verbose` - Enable verbose logging output
+///
+/// # Returns
+///
+/// `AlgorithmResult` containing the solution (if found) and step count
+///
+/// # Time Complexity
+///
+/// O(2^n) where n is the length of numbers
+///
+/// # Examples
+///
+/// ```
+/// use subset_sum::brute_force;
+///
+/// let numbers = vec![3, 7, 1, 8, 4];
+/// let result = brute_force(&numbers, 15, false);
+/// assert!(result.solution.is_some());
+/// ```
+#[must_use]
+pub fn brute_force(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+    let n = numbers.len();
+    let mut steps: u64 = 0;
+
+    verbose_log!(
+        verbose,
+        "[Brute Force] Starting with {} numbers, target={}",
+        n,
+        target
+    );
+
+    // Limit to 63 bits to avoid overflow
+    if n > 63 {
+        verbose_log!(
+            verbose,
+            "[Brute Force] Too many numbers (max 63 for brute force)"
+        );
+        return AlgorithmResult::new(None, steps);
+    }
+
+    let total_subsets = 1u64 << n;
+    for mask in 0..total_subsets {
+        steps += 1;
+
+        let mut sum: u64 = 0;
+        let mut subset = Vec::new();
+
+        for i in 0..n {
+            if mask & (1 << i) != 0 {
+                sum = sum.saturating_add(numbers[i]);
+                subset.push(numbers[i]);
+            }
+        }
+
+        verbose_log!(
+            verbose,
+            "[Brute Force] Step {}: mask={:b}, subset={:?}, sum={}",
+            steps,
+            mask,
+            subset,
+            sum
+        );
+
+        if sum == target {
+            verbose_log!(verbose, "[Brute Force] Found solution: {:?}", subset);
+            return AlgorithmResult::new(Some(subset), steps);
+        }
+    }
+
+    verbose_log!(
+        verbose,
+        "[Brute Force] No solution found after {} steps",
+        steps
+    );
+    AlgorithmResult::new(None, steps)
+}
