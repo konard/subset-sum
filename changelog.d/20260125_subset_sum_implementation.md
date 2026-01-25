@@ -3,7 +3,8 @@ bump: major
 ---
 
 ### Added
-- Complete subset sum algorithm library with 8 implementations:
+- Complete subset sum algorithm library with 9 implementations:
+  - Smart Brute Force (O(2^n) optimized with power-of-two detection) - by konard
   - Brute Force (O(2^n))
   - Backtracking (O(2^n) worst case)
   - Backtracking Pruned (O(2^n) worst case with sum-based pruning)
