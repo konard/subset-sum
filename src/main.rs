@@ -1,255 +1,407 @@
+//! Subset Sum CLI - Benchmarking tool for subset sum algorithms.
+//!
+//! This CLI allows you to run and benchmark different subset sum algorithms
+//! with configurable input parameters.
+
+use clap::{Parser, Subcommand};
 use std::time::Instant;
-use rand::Rng;
-use itertools::Itertools;
+use subset_sum::{run_algorithm, verify_solution, AlgorithmResult, ALGORITHM_NAMES};
 
-// ============================================================================
-// 1. BRUTE FORCE - O(2^n)
-// Try all possible subsets using bitmask
-// ============================================================================
-fn brute_force(numbers: &[u64], target: u64) -> (Option<Vec<u64>>, u64) {
-    let n = numbers.len();
-    let mut steps: u64 = 0;
-
-    for mask in 0..(1u64 << n) {
-        steps += 1;
-
-        let mut sum = 0;
-        let mut subset = Vec::new();
-
-        for i in 0..n {
-            if mask & (1 << i) != 0 {
-                sum += numbers[i];
-                subset.push(numbers[i]);
-            }
-        }
-
-        if sum == target {
-            return (Some(subset), steps);
-        }
-    }
-
-    (None, steps)
+/// Subset Sum Algorithm Benchmarking Tool
+#[derive(Parser)]
+#[command(name = "subset-sum")]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 }
 
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a single algorithm with specified parameters
+    Run {
+        /// Target sum to find (natural number > 0)
+        #[arg(short = 't', long)]
+        target_sum: u64,
 
-fn smart_brute_force(numbers: &[u64], target: u64) -> (Option<Vec<u64>>, u64) {
-    let mut sorted_numbers = numbers
-            .iter()
-            .cloned()
-            // filter out numbers greater than target and lower than 1 (only natural numbers)
-            .filter(|&x| x >= 1 && x <= target)
-            .sorted()
-            .collect::<Vec<u64>>();
+        /// Space-separated list of natural numbers (e.g., "3 7 1 8 4")
+        #[arg(short = 'n', long)]
+        numbers_set: String,
 
-    let n = sorted_numbers.len();
+        /// Algorithm to use
+        #[arg(short = 'a', long, default_value = "brute_force")]
+        algorithm: String,
 
-    let total_sum: u64 = sorted_numbers.iter().sum();
+        /// Enable verbose output showing each step
+        #[arg(short = 'v', long, default_value_t = false)]
+        verbose: bool,
+    },
 
-    let min = sorted_numbers[0];
-    let max = sorted_numbers[n - 1];
+    /// Run all algorithms and compare performance
+    Benchmark {
+        /// Target sum to find (natural number > 0)
+        #[arg(short = 't', long)]
+        target_sum: u64,
 
-    println!("Filtered and sorted numbers: {:?}", sorted_numbers);
-    println!("Minimum number: {}", min);
-    println!("Maximum number: {}", max);
-    println!("Total sum of numbers: {}", total_sum);
+        /// Space-separated list of natural numbers (e.g., "3 7 1 8 4")
+        #[arg(short = 'n', long)]
+        numbers_set: String,
 
-    if (max == target) {
-        return (Some(vec![max]), 1);
-    }
-    if target < min || target > total_sum {
-        return (None, 0);
-    }
+        /// Enable verbose output
+        #[arg(short = 'v', long, default_value_t = false)]
+        verbose: bool,
 
-    let mut existing_powers_of_two: u64 = 0;
-    for &number in &sorted_numbers {
-        if number.is_power_of_two() {
-            existing_powers_of_two |= 1 << number.trailing_zeros();
-        }
-    }
+        /// Algorithms to skip (comma-separated)
+        #[arg(long, default_value = "")]
+        skip: String,
+    },
 
-    println!("Existing powers of two (binary): {:064b}", existing_powers_of_two);
+    /// List all available algorithms
+    List,
 
-    let missing_powers_of_two = existing_powers_of_two ^ 0xFFFFFFFFFFFFFFFF;
+    /// Run scaling test to demonstrate non-polynomial growth
+    ScalingTest {
+        /// Starting size of input array
+        #[arg(long, default_value_t = 5)]
+        start_size: usize,
 
-    println!("Missing powers of two (binary): {:064b}", missing_powers_of_two);
+        /// Ending size of input array
+        #[arg(long, default_value_t = 20)]
+        end_size: usize,
 
-    let powers_of_to_missing_for_target = missing_powers_of_two & target;
+        /// Size increment
+        #[arg(long, default_value_t = 1)]
+        step: usize,
 
-    println!("Powers of two missing for target (binary): {:064b}", powers_of_to_missing_for_target);
+        /// Algorithm to test
+        #[arg(short = 'a', long, default_value = "brute_force")]
+        algorithm: String,
 
-    if (powers_of_to_missing_for_target == 0) {
-        // build our target using available power of two
-        let mut sum = 0;
-        let mut subset = Vec::new();
-
-        for i in 0..64 {
-            if target & (1 << i) != 0 {
-                // we need this power of two
-                if existing_powers_of_two & (1 << i) != 0 {
-                    // we have it
-                    let power_of_two = 1u64 << i;
-                    sum += power_of_two;
-                    subset.push(power_of_two);
-                }
-            }
-        }
-        return (Some(subset), 0);
-    }
-
-    let mut steps: u64 = 0;
-
-    for mask in 0..(1u64 << n) {
-        steps += 1;
-
-        let mut sum = 0;
-        let mut subset = Vec::new();
-
-        for i in 0..n {
-            if mask & (1 << i) != 0 {
-                sum += sorted_numbers[i];
-                subset.push(sorted_numbers[i]);
-            }
-        }
-
-        if sum == target {
-            return (Some(subset), steps);
-        }
-    }
-
-    (None, steps)
+        /// Output format (table or csv)
+        #[arg(long, default_value = "table")]
+        format: String,
+    },
 }
 
-// ============================================================================
-// VERIFICATION
-// ============================================================================
-fn verify(numbers: &[u64], target: u64, subset: &[u64]) -> bool {
-    let mut available = numbers.to_vec();
-    for &x in subset {
-        if let Some(pos) = available.iter().position(|&n| n == x) {
-            available.remove(pos);
-        } else {
-            return false;
+fn parse_numbers(input: &str) -> Result<Vec<u64>, String> {
+    let numbers: Result<Vec<u64>, _> = input
+        .split_whitespace()
+        .map(|s| {
+            s.parse::<u64>().map_err(|_| {
+                format!(
+                    "Invalid number: '{}'. Must be a natural number (positive integer).",
+                    s
+                )
+            })
+        })
+        .collect();
+
+    let numbers = numbers?;
+
+    // Validate all numbers are natural (> 0)
+    for &n in &numbers {
+        if n == 0 {
+            return Err(
+                "Zero is not allowed. All numbers must be natural numbers (positive integers)."
+                    .to_string(),
+            );
         }
     }
-    subset.iter().sum::<u64>() == target
+
+    if numbers.is_empty() {
+        return Err("Numbers set cannot be empty.".to_string());
+    }
+
+    Ok(numbers)
 }
 
-// ============================================================================
-// BENCHMARKING
-// ============================================================================
-fn run_benchmark<F>(name: &str, f: F, numbers: &[u64], target: u64) -> (bool, u64, u128)
-where
-    F: Fn(&[u64], u64) -> (Option<Vec<u64>>, u64),
-{
+fn validate_target(target: u64) -> Result<(), String> {
+    if target == 0 {
+        return Err(
+            "Target sum must be a natural number (positive integer), not zero.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn run_single_algorithm(
+    algorithm: &str,
+    numbers: &[u64],
+    target: u64,
+    verbose: bool,
+) -> Result<(), String> {
+    if !ALGORITHM_NAMES.contains(&algorithm) {
+        return Err(format!(
+            "Unknown algorithm: '{}'. Use 'subset-sum list' to see available algorithms.",
+            algorithm
+        ));
+    }
+
+    println!("Running {} algorithm", algorithm);
+    println!("Numbers: {:?}", numbers);
+    println!("Target: {}", target);
+    println!();
+
     let start = Instant::now();
-    let (result, steps) = f(numbers, target);
-    let elapsed = start.elapsed().as_micros();
+    let result = run_algorithm(algorithm, numbers, target, verbose)
+        .ok_or_else(|| format!("Failed to run algorithm: {}", algorithm))?;
+    let elapsed = start.elapsed();
 
-    let valid = match &result {
-        Some(subset) => verify(numbers, target, subset),
-        None => true, // no solution found, can't verify
-    };
+    print_result(&result, numbers, target, elapsed);
+    Ok(())
+}
 
-    println!(
-        "  {:<25} {:>12} steps  {:>10} µs  {}",
-        name,
-        steps,
-        elapsed,
-        if result.is_some() { "FOUND" } else { "NOT FOUND" }
-    );
+fn print_result(
+    result: &AlgorithmResult,
+    numbers: &[u64],
+    target: u64,
+    elapsed: std::time::Duration,
+) {
+    match &result.solution {
+        Some(subset) => {
+            println!("FOUND subset: {:?}", subset);
+            println!("Sum: {}", subset.iter().sum::<u64>());
 
-    if result.is_some() && valid{
-        // print binary representation of the subset
-        let subset = result.unwrap();
-        println!("    Subset:");
-        for &num in &subset {
-            println!("      {:08b} ({})", num, num);
+            let valid = verify_solution(numbers, target, subset);
+            println!("Valid: {}", if valid { "YES" } else { "NO" });
+        }
+        None => {
+            println!("NOT FOUND - No subset sums to target");
         }
     }
-
-    (valid, steps, elapsed)
+    println!();
+    println!("Steps: {}", result.steps);
+    println!("Time: {} µs", elapsed.as_micros());
 }
 
-fn make_random_number(max_value: u64) -> u64 {
-    let mut rng = rand::thread_rng();
-    rng.gen_range(1..=max_value)
-}
+fn run_benchmark(numbers: &[u64], target: u64, verbose: bool, skip: &str) -> Result<(), String> {
+    let skip_list: Vec<&str> = skip
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
 
-fn make_unique_random_numbers(n: usize, max_value: u64) -> Vec<u64> {
-    let mut numbers = std::collections::HashSet::new();
-    while numbers.len() < n {
-        numbers.insert(make_random_number(max_value));
-    }
-    numbers.into_iter().collect()
-}
-
-fn main() {
     println!("╔══════════════════════════════════════════════════════════════════╗");
     println!("║           SUBSET SUM ALGORITHM COMPARISON                        ║");
-    println!("╚══════════════════════════════════════════════════════════════════╝\n");
+    println!("╚══════════════════════════════════════════════════════════════════╝");
+    println!();
+    println!("Numbers: {:?}", numbers);
+    println!("Target: {}", target);
+    println!("Input size (n): {}", numbers.len());
+    println!();
 
-    // Test 1: Small example with solution
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("TEST 1: Small example (n=10, has solution)");
-    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    // let numbers_original = vec![3, 7, 1, 8, 4, 12, 5, 6, 9, 2];
-    let numbers_original = make_unique_random_numbers(200, 200);
-    let mut numbers_sorted = numbers_original.clone();
-    numbers_sorted.sort();
-    let target = make_random_number(200);
-    println!("Numbers: {:?}", numbers_sorted);
+    println!(
+        "{:<25} {:>12} {:>12} {:>10}",
+        "Algorithm", "Steps", "Time (µs)", "Result"
+    );
+    println!("{:-<25} {:->12} {:->12} {:->10}", "", "", "", "");
 
-    for &number in &numbers_sorted {
-        println!("  Number (binary): {:08b}", number);
+    for &algo in &ALGORITHM_NAMES {
+        if skip_list.contains(&algo) {
+            println!("{:<25} {:>12} {:>12} {:>10}", algo, "-", "-", "SKIPPED");
+            continue;
+        }
+
+        let start = Instant::now();
+        let result = run_algorithm(algo, numbers, target, verbose)
+            .ok_or_else(|| format!("Failed to run algorithm: {}", algo))?;
+        let elapsed = start.elapsed();
+
+        let status = match &result.solution {
+            Some(subset) => {
+                if verify_solution(numbers, target, subset) {
+                    "FOUND"
+                } else {
+                    "INVALID"
+                }
+            }
+            None => "NOT FOUND",
+        };
+
+        println!(
+            "{:<25} {:>12} {:>12} {:>10}",
+            algo,
+            result.steps,
+            elapsed.as_micros(),
+            status
+        );
     }
 
-    println!("Target: {}\n", target);
-    println!("Target (binary): {:08b}", target);
+    println!();
+    print_complexity_summary();
 
-    run_benchmark("Brute Force", smart_brute_force, &numbers_sorted, target);
+    Ok(())
+}
 
-    // Test 2: Medium, no solution (worst case)
-    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("TEST 2: No solution - worst case (n=20)");
+fn print_complexity_summary() {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    let numbers: Vec<u64> = (1..=20).collect();
-    let target = numbers.iter().sum::<u64>() + 1; // impossible
-    println!("Numbers: 1..=20");
-
-    for &number in &numbers {
-        println!("  Number (binary): {:08b}", number);
-    }
-
-    let total_sum: u64 = numbers.iter().sum();
-    println!("Total Sum: {} (binary: {:08b})", total_sum, total_sum);
-
-    println!("Target: {} (impossible)\n", target);
-    println!("Target (binary): {:08b}", target);
-
-    run_benchmark("Brute Force", smart_brute_force, &numbers, target);
-
-    // Complexity comparison table
-    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("ALGORITHM COMPLEXITY SUMMARY");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    println!("  {:<25} {:<20} {:<20}", "Algorithm", "Time", "Space");
-    println!("  {:-<25} {:-<20} {:-<20}", "", "", "");
-    println!("  {:<25} {:<20} {:<20}", "Brute Force",           "O(2^n)",             "O(n)");
-    println!("  {:<25} {:<20} {:<20}", "Backtracking",          "O(2^n)",             "O(n)");
-    println!("  {:<25} {:<20} {:<20}", "Backtracking Pruned",   "O(2^n) worst",       "O(n)");
-    println!("  {:<25} {:<20} {:<20}", "Dynamic Programming",   "O(n × target)",      "O(target)");
-    println!("  {:<25} {:<20} {:<20}", "Meet in Middle",        "O(2^(n/2))",         "O(2^(n/2))");
-    println!("  {:<25} {:<20} {:<20}", "Meet in Middle (Hash)", "O(2^(n/2))",         "O(2^(n/2))");
-    println!("  {:<25} {:<20} {:<20}", "Branch and Bound",      "O(2^n) worst",       "O(n)");
-    println!("  {:<25} {:<20} {:<20}", "Randomized",            "O(2^n) expected",    "O(2^n)");
-
-    println!("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("{:<25} {:<20} {:<20}", "Algorithm", "Time", "Space");
+    println!("{:-<25} {:-<20} {:-<20}", "", "", "");
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "smart_brute_force", "O(2^n) optimized", "O(n)"
+    );
+    println!("{:<25} {:<20} {:<20}", "brute_force", "O(2^n)", "O(n)");
+    println!("{:<25} {:<20} {:<20}", "backtracking", "O(2^n)", "O(n)");
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "backtracking_pruned", "O(2^n) worst", "O(n)"
+    );
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "dynamic_programming", "O(n × target)", "O(target)"
+    );
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "meet_in_middle", "O(2^(n/2))", "O(2^(n/2))"
+    );
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "meet_in_middle_hash", "O(2^(n/2))", "O(2^(n/2))"
+    );
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "branch_and_bound", "O(2^n) worst", "O(n)"
+    );
+    println!(
+        "{:<25} {:<20} {:<20}",
+        "randomized", "O(2^n) expected", "O(2^n)"
+    );
+    println!();
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     println!("KEY INSIGHTS");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("• Smart Brute Force: Optimized with power-of-two detection");
     println!("• Meet in Middle: Best for moderate n (25-40), any target size");
     println!("• Dynamic Programming: Best when target value is small");
     println!("• Backtracking Pruned: Best for small targets with positive numbers");
     println!("• Branch and Bound: Good all-around with intelligent pruning");
     println!("• Brute Force: Only for n < 20");
     println!("• No polynomial solution exists (unless P = NP)");
+}
+
+fn run_scaling_test(
+    start_size: usize,
+    end_size: usize,
+    step: usize,
+    algorithm: &str,
+    format: &str,
+) -> Result<(), String> {
+    if !ALGORITHM_NAMES.contains(&algorithm) {
+        return Err(format!(
+            "Unknown algorithm: '{}'. Use 'subset-sum list' to see available algorithms.",
+            algorithm
+        ));
+    }
+
+    println!("Scaling Test for: {}", algorithm);
+    println!("Testing exponential growth of computational steps");
+    println!();
+
+    if format == "csv" {
+        println!("n,steps,time_us,2^n,ratio");
+    } else {
+        println!(
+            "{:>5} {:>15} {:>12} {:>15} {:>10}",
+            "n", "Steps", "Time (µs)", "2^n", "Ratio"
+        );
+        println!("{:->5} {:->15} {:->12} {:->15} {:->10}", "", "", "", "", "");
+    }
+
+    for n in (start_size..=end_size).step_by(step) {
+        // Generate worst-case input: consecutive numbers, impossible target
+        let numbers: Vec<u64> = (1..=n as u64).collect();
+        let total_sum: u64 = numbers.iter().sum();
+        let target = total_sum + 1; // Impossible target forces full search
+
+        let start = Instant::now();
+        let result = run_algorithm(algorithm, &numbers, target, false)
+            .ok_or_else(|| format!("Failed to run algorithm: {}", algorithm))?;
+        let elapsed = start.elapsed();
+
+        let expected = 1u64 << n.min(63);
+        let ratio = if expected > 0 {
+            result.steps as f64 / expected as f64
+        } else {
+            0.0
+        };
+
+        if format == "csv" {
+            println!(
+                "{},{},{},{},{:.4}",
+                n,
+                result.steps,
+                elapsed.as_micros(),
+                expected,
+                ratio
+            );
+        } else {
+            println!(
+                "{:>5} {:>15} {:>12} {:>15} {:>10.4}",
+                n,
+                result.steps,
+                elapsed.as_micros(),
+                expected,
+                ratio
+            );
+        }
+    }
+
+    println!();
+    println!("Note: Steps grow exponentially with n (2^n), demonstrating");
+    println!("that the Subset Sum problem has no known polynomial-time solution.");
+    println!("This is consistent with its NP-complete classification.");
+
+    Ok(())
+}
+
+fn list_algorithms() {
+    println!("Available algorithms:");
+    println!();
+    for algo in ALGORITHM_NAMES {
+        println!("  • {}", algo);
+    }
+    println!();
+    println!("Use --algorithm <name> to select an algorithm.");
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    let result = match cli.command {
+        Commands::Run {
+            target_sum,
+            numbers_set,
+            algorithm,
+            verbose,
+        } => validate_target(target_sum)
+            .and_then(|()| parse_numbers(&numbers_set))
+            .and_then(|numbers| run_single_algorithm(&algorithm, &numbers, target_sum, verbose)),
+        Commands::Benchmark {
+            target_sum,
+            numbers_set,
+            verbose,
+            skip,
+        } => validate_target(target_sum)
+            .and_then(|()| parse_numbers(&numbers_set))
+            .and_then(|numbers| run_benchmark(&numbers, target_sum, verbose, &skip)),
+        Commands::List => {
+            list_algorithms();
+            Ok(())
+        }
+        Commands::ScalingTest {
+            start_size,
+            end_size,
+            step,
+            algorithm,
+            format,
+        } => run_scaling_test(start_size, end_size, step, &algorithm, &format),
+    };
+
+    if let Err(e) = result {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
 }

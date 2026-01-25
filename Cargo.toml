@@ -1,31 +1,28 @@
 [package]
-name = "my-package"
+name = "subset-sum"
 version = "0.1.0"
 edition = "2021"
-description = "A Rust package template for AI-driven development"
+description = "Subset Sum algorithm implementations and benchmarking tool"
 readme = "README.md"
 license = "Unlicense"
-keywords = ["template", "rust", "ai-driven"]
-categories = ["development-tools"]
-repository = "https://github.com/link-foundation/rust-ai-driven-development-pipeline-template"
-documentation = "https://github.com/link-foundation/rust-ai-driven-development-pipeline-template"
+keywords = ["subset-sum", "algorithms", "benchmarking", "np-complete"]
+categories = ["algorithms", "command-line-utilities"]
+repository = "https://github.com/konard/subset-sum"
+documentation = "https://github.com/konard/subset-sum"
 rust-version = "1.70"
 
 [lib]
-name = "my_package"
+name = "subset_sum"
 path = "src/lib.rs"
 
 [[bin]]
-name = "my-package"
+name = "subset-sum"
 path = "src/main.rs"
 
 [dependencies]
-itertools = "0.14.0"
-rand = "0.9.2"
-tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "time"] }
+clap = { version = "4.4", features = ["derive"] }
 
 [dev-dependencies]
-tokio-test = "0.4"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -40,6 +37,18 @@ module_name_repetitions = "allow"
 too_many_lines = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+# Allow patterns needed for recursive algorithms
+items_after_statements = "allow"
+too_many_arguments = "allow"
+needless_range_loop = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+redundant_closure_for_method_calls = "allow"
+option_if_let_else = "allow"
+uninlined_format_args = "allow"
+similar_names = "allow"
+cast_lossless = "allow"
+unused_self = "allow"
 
 [profile.release]
 lto = true
