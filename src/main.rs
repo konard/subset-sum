@@ -36,7 +36,8 @@ fn smart_brute_force(numbers: &[u64], target: u64) -> (Option<Vec<u64>>, u64) {
     let mut sorted_numbers = numbers
             .iter()
             .cloned()
-            .filter(|&x| x <= target) // filter out numbers greater than target
+            // filter out numbers greater than target and lower than 1 (only natural numbers)
+            .filter(|&x| x >= 1 && x <= target)
             .sorted()
             .collect::<Vec<u64>>();
 
