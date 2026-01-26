@@ -4,6 +4,8 @@
 //! with configurable input parameters.
 
 use clap::{Parser, Subcommand};
+use rand::seq::SliceRandom;
+use rand::Rng;
 use std::time::Instant;
 use subset_sum::{run_algorithm, verify_solution, AlgorithmResult, ALGORITHM_NAMES};
 
@@ -20,13 +22,13 @@ struct Cli {
 enum Commands {
     /// Run a single algorithm with specified parameters
     Run {
-        /// Target sum to find (natural number > 0)
+        /// Target sum to find (natural number > 0). If not provided, uses random 1-256.
         #[arg(short = 't', long)]
-        target_sum: u64,
+        target_sum: Option<u64>,
 
-        /// Space-separated list of natural numbers (e.g., "3 7 1 8 4")
+        /// Space-separated list of natural numbers (e.g., "3 7 1 8 4"). If not provided, generates random unique numbers.
         #[arg(short = 'n', long)]
-        numbers_set: String,
+        numbers_set: Option<String>,
 
         /// Algorithm to use
         #[arg(short = 'a', long, default_value = "brute_force")]
@@ -39,13 +41,13 @@ enum Commands {
 
     /// Run all algorithms and compare performance
     Benchmark {
-        /// Target sum to find (natural number > 0)
+        /// Target sum to find (natural number > 0). If not provided, uses random 1-256.
         #[arg(short = 't', long)]
-        target_sum: u64,
+        target_sum: Option<u64>,
 
-        /// Space-separated list of natural numbers (e.g., "3 7 1 8 4")
+        /// Space-separated list of natural numbers (e.g., "3 7 1 8 4"). If not provided, generates random unique numbers.
         #[arg(short = 'n', long)]
-        numbers_set: String,
+        numbers_set: Option<String>,
 
         /// Enable verbose output
         #[arg(short = 'v', long, default_value_t = false)]
@@ -122,6 +124,26 @@ fn validate_target(target: u64) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+/// Generates a random set of unique numbers.
+/// Size: random 1-64, each number: random 1-64
+fn generate_random_numbers() -> Vec<u64> {
+    let mut rng = rand::thread_rng();
+    let size = rng.gen_range(1..=64);
+
+    // Create a pool of numbers 1-64 and shuffle to pick unique ones
+    let mut pool: Vec<u64> = (1..=64).collect();
+    pool.shuffle(&mut rng);
+
+    // Take the first `size` numbers
+    pool.into_iter().take(size).collect()
+}
+
+/// Generates a random target sum between 1 and 256.
+fn generate_random_target() -> u64 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(1..=256)
 }
 
 fn run_single_algorithm(
@@ -376,17 +398,43 @@ fn main() {
             numbers_set,
             algorithm,
             verbose,
-        } => validate_target(target_sum)
-            .and_then(|()| parse_numbers(&numbers_set))
-            .and_then(|numbers| run_single_algorithm(&algorithm, &numbers, target_sum, verbose)),
+        } => {
+            // Generate random values if not provided
+            let numbers = match numbers_set {
+                Some(ref ns) => match parse_numbers(ns) {
+                    Ok(n) => n,
+                    Err(e) => return print_error_and_exit(&e),
+                },
+                None => generate_random_numbers(),
+            };
+            let target = target_sum.unwrap_or_else(generate_random_target);
+
+            if let Err(e) = validate_target(target) {
+                return print_error_and_exit(&e);
+            }
+            run_single_algorithm(&algorithm, &numbers, target, verbose)
+        }
         Commands::Benchmark {
             target_sum,
             numbers_set,
             verbose,
             skip,
-        } => validate_target(target_sum)
-            .and_then(|()| parse_numbers(&numbers_set))
-            .and_then(|numbers| run_benchmark(&numbers, target_sum, verbose, &skip)),
+        } => {
+            // Generate random values if not provided
+            let numbers = match numbers_set {
+                Some(ref ns) => match parse_numbers(ns) {
+                    Ok(n) => n,
+                    Err(e) => return print_error_and_exit(&e),
+                },
+                None => generate_random_numbers(),
+            };
+            let target = target_sum.unwrap_or_else(generate_random_target);
+
+            if let Err(e) = validate_target(target) {
+                return print_error_and_exit(&e);
+            }
+            run_benchmark(&numbers, target, verbose, &skip)
+        }
         Commands::List => {
             list_algorithms();
             Ok(())
@@ -404,4 +452,9 @@ fn main() {
         eprintln!("Error: {}", e);
         std::process::exit(1);
     }
+}
+
+fn print_error_and_exit(e: &str) {
+    eprintln!("Error: {}", e);
+    std::process::exit(1);
 }
