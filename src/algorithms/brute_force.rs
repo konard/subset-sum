@@ -120,14 +120,18 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
         }
     }
 
+    let mut steps: u64 = 0;
+
     for i in 0..n {
         let first_number = sorted_numbers[i];
         let mut possible_sum: u64 = first_number;
         let mut missing_powers_of_two = possible_sum ^ target;
 
         for j in (i+1)..n {
-            let second_number = sorted_numbers[j];
+            steps += 1;
 
+            let second_number = sorted_numbers[j];
+            
             if (second_number & missing_powers_of_two) == second_number {
                 possible_sum = possible_sum.saturating_add(second_number);
                 missing_powers_of_two = possible_sum ^ target;
@@ -139,7 +143,7 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
                     "[Smart Brute Force] Found solution during preprocessing: [{}]",
                     possible_sum
                 );
-                return AlgorithmResult::new(Some(vec![first_number]), 0);
+                return AlgorithmResult::new(Some(vec![first_number]), steps);
             }
         }
     }
