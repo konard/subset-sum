@@ -7,7 +7,7 @@
 //!
 //! This is similar to the Apriori algorithm from frequent itemset mining.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 use std::collections::HashSet;
 
 /// Represents a subset as a bitmask and its sum.
@@ -54,7 +54,7 @@ impl SubsetState {
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -74,14 +74,15 @@ impl SubsetState {
 /// # Examples
 ///
 /// ```
-/// use subset_sum::incremental_pruning;
+/// use subset_sum::{incremental_pruning, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = incremental_pruning(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = incremental_pruning(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn incremental_pruning(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn incremental_pruning(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    let numbers = input.numbers();
     let n = numbers.len();
     let mut steps: u64 = 0;
 
@@ -259,8 +260,8 @@ mod tests {
 
     #[test]
     fn test_simple_solution() {
-        let numbers = vec![3, 7, 1, 8, 4];
-        let result = incremental_pruning(&numbers, 15, false);
+        let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+        let result = incremental_pruning(&input, 15, false);
         assert!(result.solution.is_some());
         let solution = result.solution.unwrap();
         assert_eq!(solution.iter().sum::<u64>(), 15);
@@ -268,31 +269,31 @@ mod tests {
 
     #[test]
     fn test_no_solution() {
-        let numbers = vec![2, 4, 6, 8];
-        let result = incremental_pruning(&numbers, 1, false);
+        let input = InputSet::new(vec![2, 4, 6, 8]).unwrap();
+        let result = incremental_pruning(&input, 1, false);
         assert!(result.solution.is_none());
     }
 
     #[test]
     fn test_target_zero() {
-        let numbers = vec![1, 2, 3];
-        let result = incremental_pruning(&numbers, 0, false);
+        let input = InputSet::new(vec![1, 2, 3]).unwrap();
+        let result = incremental_pruning(&input, 0, false);
         assert!(result.solution.is_some());
         assert!(result.solution.unwrap().is_empty());
     }
 
     #[test]
     fn test_single_element() {
-        let numbers = vec![5];
-        let result = incremental_pruning(&numbers, 5, false);
+        let input = InputSet::new(vec![5]).unwrap();
+        let result = incremental_pruning(&input, 5, false);
         assert!(result.solution.is_some());
         assert_eq!(result.solution.unwrap(), vec![5]);
     }
 
     #[test]
     fn test_pair_solution() {
-        let numbers = vec![3, 7, 10];
-        let result = incremental_pruning(&numbers, 10, false);
+        let input = InputSet::new(vec![3, 7, 10]).unwrap();
+        let result = incremental_pruning(&input, 10, false);
         assert!(result.solution.is_some());
         let solution = result.solution.unwrap();
         assert_eq!(solution.iter().sum::<u64>(), 10);
@@ -301,8 +302,8 @@ mod tests {
     #[test]
     fn test_pruning_effectiveness() {
         // Large numbers should get pruned early
-        let numbers = vec![100, 200, 300, 1, 2, 3];
-        let result = incremental_pruning(&numbers, 6, false);
+        let input = InputSet::new(vec![100, 200, 300, 1, 2, 3]).unwrap();
+        let result = incremental_pruning(&input, 6, false);
         assert!(result.solution.is_some());
         assert_eq!(result.solution.unwrap().iter().sum::<u64>(), 6);
         // Steps should be relatively low due to pruning
@@ -310,8 +311,8 @@ mod tests {
 
     #[test]
     fn test_larger_subset() {
-        let numbers = vec![1, 2, 3, 4, 5];
-        let result = incremental_pruning(&numbers, 12, false);
+        let input = InputSet::new(vec![1, 2, 3, 4, 5]).unwrap();
+        let result = incremental_pruning(&input, 12, false);
         assert!(result.solution.is_some());
         assert_eq!(result.solution.unwrap().iter().sum::<u64>(), 12);
     }

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 // ============================================================================
 // 5. MEET IN THE MIDDLE - O(2^(n/2))
@@ -15,7 +15,7 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -30,14 +30,15 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::meet_in_middle;
+/// use subset_sum::{meet_in_middle, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = meet_in_middle(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = meet_in_middle(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn meet_in_middle(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn meet_in_middle(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    let numbers = input.numbers();
     let n = numbers.len();
     let mid = n / 2;
     let mut steps: u64 = 0;
@@ -142,7 +143,7 @@ pub fn meet_in_middle(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmR
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -157,14 +158,15 @@ pub fn meet_in_middle(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmR
 /// # Examples
 ///
 /// ```
-/// use subset_sum::meet_in_middle_hash;
+/// use subset_sum::{meet_in_middle_hash, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = meet_in_middle_hash(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = meet_in_middle_hash(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn meet_in_middle_hash(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn meet_in_middle_hash(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    let numbers = input.numbers();
     let n = numbers.len();
     let mid = n / 2;
     let mut steps: u64 = 0;

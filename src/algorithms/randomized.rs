@@ -1,6 +1,6 @@
 //! Randomized algorithm for the subset sum problem.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 // ============================================================================
 // 8. RANDOMIZED (Las Vegas) - Expected O(2^n), can get lucky
@@ -13,7 +13,7 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 /// * `seed` - Random seed for reproducibility
@@ -29,14 +29,15 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::randomized;
+/// use subset_sum::{randomized, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = randomized(&numbers, 15, false, 12345);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = randomized(&input, 15, false, 12345);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn randomized(numbers: &[u64], target: u64, verbose: bool, seed: u64) -> AlgorithmResult {
+pub fn randomized(input: &InputSet, target: u64, verbose: bool, seed: u64) -> AlgorithmResult {
+    let numbers = input.numbers();
     let n = numbers.len();
     let mut steps: u64 = 0;
 

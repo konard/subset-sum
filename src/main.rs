@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use rand::seq::SliceRandom;
 use rand::Rng;
 use std::time::Instant;
-use subset_sum::{run_algorithm, verify_solution, AlgorithmResult, ALGORITHM_NAMES};
+use subset_sum::{run_algorithm, verify_solution, AlgorithmResult, InputSet, ALGORITHM_NAMES};
 
 /// Subset Sum Algorithm Benchmarking Tool
 #[derive(Parser)]
@@ -85,7 +85,7 @@ enum Commands {
     },
 }
 
-fn parse_numbers(input: &str) -> Result<Vec<u64>, String> {
+fn parse_numbers(input: &str) -> Result<InputSet, String> {
     let numbers: Result<Vec<u64>, _> = input
         .split_whitespace()
         .map(|s| {
@@ -100,21 +100,8 @@ fn parse_numbers(input: &str) -> Result<Vec<u64>, String> {
 
     let numbers = numbers?;
 
-    // Validate all numbers are natural (> 0)
-    for &n in &numbers {
-        if n == 0 {
-            return Err(
-                "Zero is not allowed. All numbers must be natural numbers (positive integers)."
-                    .to_string(),
-            );
-        }
-    }
-
-    if numbers.is_empty() {
-        return Err("Numbers set cannot be empty.".to_string());
-    }
-
-    Ok(numbers)
+    // Use InputSet to validate (checks for empty, zeros, and duplicates)
+    InputSet::new(numbers).map_err(|e| e.to_string())
 }
 
 fn validate_target(target: u64) -> Result<(), String> {
@@ -136,7 +123,8 @@ const MAX_RANDOM_TARGET: u64 = 256;
 
 /// Generates a random set of unique numbers.
 /// Size: random 1-64, each number: random 1-64
-fn generate_random_numbers() -> Vec<u64> {
+/// Returns an `InputSet` with sorted, unique numbers.
+fn generate_random_numbers() -> InputSet {
     let mut rng = rand::thread_rng();
     let size = rng.gen_range(1..=MAX_RANDOM_NUMBER_SET_SIZE);
 
@@ -144,8 +132,11 @@ fn generate_random_numbers() -> Vec<u64> {
     let mut pool: Vec<u64> = (1..=MAX_RANDOM_NUMBER).collect();
     pool.shuffle(&mut rng);
 
-    // Take the first `size` numbers
-    pool.into_iter().take(size).collect()
+    // Take the first `size` numbers and create InputSet
+    // Using new_unchecked since we know the pool has unique values > 0
+    let mut numbers: Vec<u64> = pool.into_iter().take(size).collect();
+    numbers.sort_unstable();
+    InputSet::new_unchecked(numbers)
 }
 
 /// Generates a random target sum between 1 and 256.
@@ -156,7 +147,7 @@ fn generate_random_target() -> u64 {
 
 fn run_single_algorithm(
     algorithm: &str,
-    numbers: &[u64],
+    input: &InputSet,
     target: u64,
     verbose: bool,
 ) -> Result<(), String> {
@@ -168,16 +159,23 @@ fn run_single_algorithm(
     }
 
     println!("Running {} algorithm", algorithm);
-    println!("Numbers: {:?}", numbers);
+    println!("Numbers: {:?}", input.numbers());
     println!("Target: {}", target);
+    println!("Input size (n): {}", input.len());
+    println!(
+        "Min: {}, Max: {}, Sum: {}",
+        input.min(),
+        input.max(),
+        input.total_sum()
+    );
     println!();
 
     let start = Instant::now();
-    let result = run_algorithm(algorithm, numbers, target, verbose)
+    let result = run_algorithm(algorithm, input, target, verbose)
         .ok_or_else(|| format!("Failed to run algorithm: {}", algorithm))?;
     let elapsed = start.elapsed();
 
-    print_result(&result, numbers, target, elapsed);
+    print_result(&result, input.numbers(), target, elapsed);
     Ok(())
 }
 
@@ -204,7 +202,7 @@ fn print_result(
     println!("Time: {} µs", elapsed.as_micros());
 }
 
-fn run_benchmark(numbers: &[u64], target: u64, verbose: bool, skip: &str) -> Result<(), String> {
+fn run_benchmark(input: &InputSet, target: u64, verbose: bool, skip: &str) -> Result<(), String> {
     let skip_list: Vec<&str> = skip
         .split(',')
         .map(str::trim)
@@ -215,9 +213,15 @@ fn run_benchmark(numbers: &[u64], target: u64, verbose: bool, skip: &str) -> Res
     println!("║           SUBSET SUM ALGORITHM COMPARISON                        ║");
     println!("╚══════════════════════════════════════════════════════════════════╝");
     println!();
-    println!("Numbers: {:?}", numbers);
+    println!("Numbers: {:?}", input.numbers());
     println!("Target: {}", target);
-    println!("Input size (n): {}", numbers.len());
+    println!("Input size (n): {}", input.len());
+    println!(
+        "Min: {}, Max: {}, Sum: {}",
+        input.min(),
+        input.max(),
+        input.total_sum()
+    );
     println!();
 
     println!(
@@ -233,13 +237,13 @@ fn run_benchmark(numbers: &[u64], target: u64, verbose: bool, skip: &str) -> Res
         }
 
         let start = Instant::now();
-        let result = run_algorithm(algo, numbers, target, verbose)
+        let result = run_algorithm(algo, input, target, verbose)
             .ok_or_else(|| format!("Failed to run algorithm: {}", algo))?;
         let elapsed = start.elapsed();
 
         let status = match &result.solution {
             Some(subset) => {
-                if verify_solution(numbers, target, subset) {
+                if verify_solution(input.numbers(), target, subset) {
                     "FOUND"
                 } else {
                     "INVALID"
@@ -351,8 +355,11 @@ fn run_scaling_test(
         let total_sum: u64 = numbers.iter().sum();
         let target = total_sum + 1; // Impossible target forces full search
 
+        // Create InputSet (consecutive numbers are already sorted and unique)
+        let input = InputSet::new_unchecked(numbers);
+
         let start = Instant::now();
-        let result = run_algorithm(algorithm, &numbers, target, false)
+        let result = run_algorithm(algorithm, &input, target, false)
             .ok_or_else(|| format!("Failed to run algorithm: {}", algorithm))?;
         let elapsed = start.elapsed();
 

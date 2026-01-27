@@ -1,6 +1,6 @@
 //! Backtracking algorithms for the subset sum problem.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 // ============================================================================
 // 2. BACKTRACKING - O(2^n) worst case, often better
@@ -13,7 +13,7 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -28,14 +28,15 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::backtracking;
+/// use subset_sum::{backtracking, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = backtracking(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = backtracking(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn backtracking(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn backtracking(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    let numbers = input.numbers();
     let mut steps: u64 = 0;
     let mut result: Option<Vec<u64>> = None;
 
@@ -128,11 +129,11 @@ pub fn backtracking(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmRes
 
 /// Backtracking with pruning subset sum algorithm.
 ///
-/// Sorts numbers first and prunes branches when sum exceeds target.
+/// Uses sorted input and prunes branches when sum exceeds target.
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -147,16 +148,16 @@ pub fn backtracking(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmRes
 /// # Examples
 ///
 /// ```
-/// use subset_sum::backtracking_pruned;
+/// use subset_sum::{backtracking_pruned, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = backtracking_pruned(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = backtracking_pruned(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn backtracking_pruned(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
-    let mut sorted = numbers.to_vec();
-    sorted.sort_unstable();
+pub fn backtracking_pruned(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    // Input is already sorted, so we can use it directly
+    let sorted = input.numbers();
 
     let mut steps: u64 = 0;
     let mut result: Option<Vec<u64>> = None;
@@ -164,10 +165,10 @@ pub fn backtracking_pruned(numbers: &[u64], target: u64, verbose: bool) -> Algor
     verbose_log!(
         verbose,
         "[Backtracking Pruned] Starting with {} numbers, target={}",
-        numbers.len(),
+        sorted.len(),
         target
     );
-    verbose_log!(verbose, "[Backtracking Pruned] Sorted: {:?}", sorted);
+    verbose_log!(verbose, "[Backtracking Pruned] Numbers: {:?}", sorted);
 
     fn recurse(
         nums: &[u64],
@@ -243,7 +244,7 @@ pub fn backtracking_pruned(numbers: &[u64], target: u64, verbose: bool) -> Algor
     }
 
     recurse(
-        &sorted,
+        sorted,
         target,
         0,
         0,

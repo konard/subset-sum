@@ -1,18 +1,18 @@
 //! Max-first reduction algorithm for the subset sum problem.
 //!
-//! This algorithm works by sorting numbers and recursively trying to include
+//! This algorithm works by using sorted input and recursively trying to include
 //! the largest element first. If including the max doesn't lead to a solution,
 //! it's excluded and the search continues with smaller elements.
 //!
 //! The idea is that by committing to the largest elements early, we can
 //! reduce the target sum faster and potentially prune more of the search space.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 /// Max-first reduction subset sum algorithm.
 ///
 /// This algorithm:
-/// 1. Sorts numbers in ascending order
+/// 1. Uses pre-sorted input from `InputSet`
 /// 2. Filters out numbers greater than target
 /// 3. Handles edge cases (target = 0, single element solutions, etc.)
 /// 4. Recursively tries to include the largest element:
@@ -24,7 +24,7 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -40,20 +40,20 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::max_first_reduction;
+/// use subset_sum::{max_first_reduction, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = max_first_reduction(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = max_first_reduction(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn max_first_reduction(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn max_first_reduction(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
     let mut steps: u64 = 0;
 
     verbose_log!(
         verbose,
         "[Max-First Reduction] Starting with {} numbers, target={}",
-        numbers.len(),
+        input.len(),
         target
     );
 
@@ -66,11 +66,12 @@ pub fn max_first_reduction(numbers: &[u64], target: u64, verbose: bool) -> Algor
         return AlgorithmResult::new(Some(Vec::new()), 0);
     }
 
-    // Filter numbers: keep only those <= target and > 0
-    let mut sorted: Vec<u64> = numbers
+    // Filter numbers: keep only those <= target (input is already sorted and > 0)
+    let sorted: Vec<u64> = input
+        .numbers()
         .iter()
         .copied()
-        .filter(|&x| x >= 1 && x <= target)
+        .filter(|&x| x <= target)
         .collect();
 
     if sorted.is_empty() {
@@ -81,12 +82,9 @@ pub fn max_first_reduction(numbers: &[u64], target: u64, verbose: bool) -> Algor
         return AlgorithmResult::new(None, 0);
     }
 
-    // Sort in ascending order (we'll work from the end for max)
-    sorted.sort_unstable();
-
     verbose_log!(
         verbose,
-        "[Max-First Reduction] Sorted and filtered numbers: {:?}",
+        "[Max-First Reduction] Filtered numbers (<= target): {:?}",
         sorted
     );
 
@@ -290,8 +288,8 @@ mod tests {
 
     #[test]
     fn test_simple_solution() {
-        let numbers = vec![3, 7, 1, 8, 4];
-        let result = max_first_reduction(&numbers, 15, false);
+        let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+        let result = max_first_reduction(&input, 15, false);
         assert!(result.solution.is_some());
         let solution = result.solution.unwrap();
         assert_eq!(solution.iter().sum::<u64>(), 15);
@@ -299,31 +297,31 @@ mod tests {
 
     #[test]
     fn test_no_solution() {
-        let numbers = vec![2, 4, 6, 8];
-        let result = max_first_reduction(&numbers, 1, false);
+        let input = InputSet::new(vec![2, 4, 6, 8]).unwrap();
+        let result = max_first_reduction(&input, 1, false);
         assert!(result.solution.is_none());
     }
 
     #[test]
     fn test_target_zero() {
-        let numbers = vec![1, 2, 3];
-        let result = max_first_reduction(&numbers, 0, false);
+        let input = InputSet::new(vec![1, 2, 3]).unwrap();
+        let result = max_first_reduction(&input, 0, false);
         assert!(result.solution.is_some());
         assert!(result.solution.unwrap().is_empty());
     }
 
     #[test]
     fn test_single_element() {
-        let numbers = vec![5];
-        let result = max_first_reduction(&numbers, 5, false);
+        let input = InputSet::new(vec![5]).unwrap();
+        let result = max_first_reduction(&input, 5, false);
         assert!(result.solution.is_some());
         assert_eq!(result.solution.unwrap(), vec![5]);
     }
 
     #[test]
     fn test_all_elements() {
-        let numbers = vec![1, 2, 3, 4];
-        let result = max_first_reduction(&numbers, 10, false);
+        let input = InputSet::new(vec![1, 2, 3, 4]).unwrap();
+        let result = max_first_reduction(&input, 10, false);
         assert!(result.solution.is_some());
         assert_eq!(result.solution.unwrap().iter().sum::<u64>(), 10);
     }
@@ -331,8 +329,8 @@ mod tests {
     #[test]
     fn test_max_first_behavior() {
         // When max is part of solution, should find it quickly
-        let numbers = vec![1, 2, 3, 10];
-        let result = max_first_reduction(&numbers, 13, false); // 10 + 3 = 13
+        let input = InputSet::new(vec![1, 2, 3, 10]).unwrap();
+        let result = max_first_reduction(&input, 13, false); // 10 + 3 = 13
         assert!(result.solution.is_some());
         let solution = result.solution.unwrap();
         assert!(solution.contains(&10));
@@ -342,16 +340,16 @@ mod tests {
     #[test]
     fn test_large_numbers_filtered() {
         // Numbers > target should be filtered out
-        let numbers = vec![100, 200, 1, 2, 3];
-        let result = max_first_reduction(&numbers, 6, false);
+        let input = InputSet::new(vec![100, 200, 1, 2, 3]).unwrap();
+        let result = max_first_reduction(&input, 6, false);
         assert!(result.solution.is_some());
         assert_eq!(result.solution.unwrap().iter().sum::<u64>(), 6);
     }
 
     #[test]
     fn test_impossible_target() {
-        let numbers = vec![1, 2, 3];
-        let result = max_first_reduction(&numbers, 100, false);
+        let input = InputSet::new(vec![1, 2, 3]).unwrap();
+        let result = max_first_reduction(&input, 100, false);
         assert!(result.solution.is_none());
     }
 }
