@@ -186,6 +186,22 @@ Proof.
   rewrite Hnlt. rewrite Hneq. reflexivity.
 Qed.
 
+(** Key insight: the head of insertSorted x l is min(x, head(l)) *)
+Lemma insertSorted_head_le : forall x y ys,
+  match insertSorted x (y :: ys) with
+  | [] => False
+  | h :: _ => h <= x /\ h <= y
+  end.
+Proof.
+  intros x y ys.
+  simpl.
+  destruct (x <? y) eqn:Hxy.
+  - simpl. apply Nat.ltb_lt in Hxy. lia.
+  - destruct (x =? y) eqn:Hxy_eq.
+    + simpl. apply Nat.eqb_eq in Hxy_eq. lia.
+    + simpl. apply Nat.ltb_ge in Hxy. lia.
+Qed.
+
 (** insertSorted preserves the strictly ascending property *)
 Theorem insertSorted_preserves_ascending : forall l x,
   StrictlyAscending l -> StrictlyAscending (insertSorted x l).
@@ -208,31 +224,29 @@ Proof.
         apply Nat.eqb_neq in Hxy_eq.
         assert (Hgt : x > y) by lia.
         clear Hxy Hxy_eq.
-        (* Now we need to show StrictlyAscending (y :: insertSorted x ys) *)
+        (* Need to show StrictlyAscending (y :: insertSorted x ys) *)
         destruct ys as [| z zs].
         -- (* ys = [] *)
            simpl. split; [exact Hgt | exact I].
         -- (* ys = z :: zs *)
            assert (Hyz : y < z) by (apply strictly_ascending_head in H; exact H).
            assert (Hrest : StrictlyAscending (z :: zs)) by (apply strictly_ascending_tail in H; exact H).
-           (* Case analysis on x vs z *)
-           simpl.
-           destruct (x <? z) eqn:Hxz.
-           ++ (* x < z *)
-              apply Nat.ltb_lt in Hxz.
-              simpl. repeat split.
-              ** exact Hgt.
-              ** exact Hxz.
-              ** exact Hrest.
-           ++ destruct (x =? z) eqn:Hxz_eq.
-              ** (* x = z *)
-                 simpl. split; [exact Hyz | exact Hrest].
-              ** (* x > z *)
-                 apply Nat.ltb_ge in Hxz.
-                 apply Nat.eqb_neq in Hxz_eq.
-                 simpl. split.
-                 --- exact Hyz.
-                 --- apply IH. exact Hrest.
+           (* Apply IH to get that insertSorted x (z :: zs) is strictly ascending *)
+           specialize (IH x Hrest).
+           (* Now we need to show y < head(insertSorted x (z :: zs)) *)
+           pose proof (insertSorted_head_le x z zs) as Hhead.
+           destruct (insertSorted x (z :: zs)) as [| h hs] eqn:Heq.
+           ++ (* Cannot be empty - contradiction *)
+              simpl in Heq.
+              destruct (x <? z); [discriminate | ].
+              destruct (x =? z); discriminate.
+           ++ (* h :: hs *)
+              destruct Hhead as [Hhx Hhz].
+              simpl. split.
+              ** (* y < h: since h <= z and y < z *)
+                 lia.
+              ** (* StrictlyAscending (h :: hs) *)
+                 rewrite <- Heq in IH. exact IH.
 Qed.
 
 (** toOrderedUnique produces strictly ascending lists *)
