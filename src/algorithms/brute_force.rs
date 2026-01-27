@@ -54,6 +54,18 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
         .collect();
     sorted_numbers.sort_unstable();
 
+    verbose_log!(verbose, "[Smart Brute Force] ---");
+
+    for &number in &sorted_numbers {
+        verbose_log!(verbose, "[Smart Brute Force] {:064b}", number);
+    }
+
+    verbose_log!(verbose, "[Smart Brute Force] ---");
+
+    verbose_log!(verbose, "[Smart Brute Force] {:064b}", target);
+
+    verbose_log!(verbose, "[Smart Brute Force] ---");
+
     verbose_log!(
         verbose,
         "[Smart Brute Force] Filtered and sorted numbers: {:?}",
@@ -120,35 +132,147 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
         }
     }
 
-    let mut steps: u64 = 0;
 
-    for i in 0..n {
-        let first_number = sorted_numbers[i];
-        let mut possible_sum: u64 = first_number;
-        let mut missing_powers_of_two = possible_sum ^ target;
-        let mut subset: Vec<u64> = vec![first_number];
+// def can_sum(numbers, target):
+//     # Используем bitset-оптимизацию (в Python это работа с большими числами)
+//     # Это невероятно быстрый способ для задачи Subset Sum
+//     possible_sums = 1
+//     for x in numbers:
+//         possible_sums |= (possible_sums << x)
+//         # Если бит на позиции target стал 1, значит сумма найдена
+//         if (possible_sums >> target) & 1:
+//             return True
+//     return (possible_sums >> target) & 1
 
-        for j in (i + 1)..n {
-            steps += 1;
+// # Генерируем 10 000 случайных чисел
+// import random
+// numbers = [random.randint(1, 100) for _ in range(10000)]
+// target = 5000 # Пример суммы
 
-            let second_number = sorted_numbers[j];
+// import time
+// start = time.time()
+// result = can_sum(numbers, target)
+// print(f"Результат: {result}, Время: {time.time() - start:.4f} сек")
 
-            if (second_number & missing_powers_of_two) == second_number {
-                possible_sum = possible_sum.saturating_add(second_number);
-                missing_powers_of_two = possible_sum ^ target;
-                subset.push(second_number);
-            }
 
-            if possible_sum == target {
-                verbose_log!(
-                    verbose,
-                    "[Smart Brute Force] Found solution during preprocessing: {:?}",
-                    subset
-                );
-                return AlgorithmResult::new(Some(subset), steps);
-            }
-        }
+    // Can 0000000000000000000000000000000000000000000000000000000000000001 be satisfied?
+
+    let mut digit_place: u64 = 1;
+
+    // required?
+
+    // while  {
+    //     for &number in &sorted_numbers {
+    //         // Can digit place be satisfied?
+    //         if (number & digit_place) == digit_place {
+                
+    //         }
+
+            
+    //     }
+    //     digit_place <<= 1;
+    // }
+
+    // for all required digit places in target:
+
+    // // Find highest digit place in target
+    // while digit_place <= target {
+    //     digit_place <<= 1;
+    // }
+    // digit_place >>= 1;
+
+    // Find all set bits in all numbers
+    let mut set_bits_in_numbers: u64 = 0;
+    for &number in &sorted_numbers {
+        set_bits_in_numbers |= number;
     }
+
+    while digit_place <= target {
+        // // Is this digit place required by target?
+        // if (target & digit_place) > 0 {
+        //     // Is this digit place available in all numbers?
+        //     if (set_bits_in_numbers & digit_place) == 0 {
+        //         verbose_log!(
+        //             verbose,
+        //             "[Smart Brute Force] Missing required digit place {:064b}, should be no solution",
+        //             digit_place
+        //         );
+        //         return AlgorithmResult::new(None, 0);
+        //     } else {
+        //         verbose_log!(
+        //             verbose,
+        //             "[Smart Brute Force] Required digit place {:064b} is available",
+        //             digit_place
+        //         );
+        //     }
+        // }
+
+        digit_place <<= 1;
+    }
+    
+    // while digit_place > 0 {
+    //     verbose_log!(
+    //         verbose,
+    //         "[Smart Brute Force] Checking digit place: {:064b}",
+    //         digit_place
+    //     );
+
+    //     // Is this digit place required by target?
+    //     if (target & digit_place) > 0 {
+    //         // Is this digit place available in all numbers?
+    //         if (set_bits_in_numbers & digit_place) == 0 {
+    //             verbose_log!(
+    //                 verbose,
+    //                 "[Smart Brute Force] Missing required digit place {:064b}, should be no solution",
+    //                 digit_place
+    //             );
+
+    //             // Can it be constructed from the previous digit places?
+                
+
+    //             // return AlgorithmResult::new(None, 0);
+    //         } else {
+    //             verbose_log!(
+    //                 verbose,
+    //                 "[Smart Brute Force] Required digit place {:064b} is available",
+    //                 digit_place
+    //             );
+    //         }
+    //     }
+
+    //     digit_place >>= 1;
+    // }
+
+
+    // let mut steps: u64 = 0;
+
+    // for i in 0..n {
+    //     let first_number = sorted_numbers[i];
+    //     let mut possible_sum: u64 = first_number;
+    //     let mut missing_powers_of_two = possible_sum ^ target;
+    //     let mut subset: Vec<u64> = vec![first_number];
+
+    //     for j in (i + 1)..n {
+    //         steps += 1;
+
+    //         let second_number = sorted_numbers[j];
+
+    //         if (second_number & missing_powers_of_two) == second_number {
+    //             possible_sum = possible_sum.saturating_add(second_number);
+    //             missing_powers_of_two = possible_sum ^ target;
+    //             subset.push(second_number);
+    //         }
+
+    //         if possible_sum == target {
+    //             verbose_log!(
+    //                 verbose,
+    //                 "[Smart Brute Force] Found solution during preprocessing: {:?}",
+    //                 subset
+    //             );
+    //             return AlgorithmResult::new(Some(subset), steps);
+    //         }
+    //     }
+    // }
 
     verbose_log!(
         verbose,
