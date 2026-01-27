@@ -1,6 +1,6 @@
 //! Branch and bound algorithm for the subset sum problem.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 // ============================================================================
 // 7. BRANCH AND BOUND - O(2^n) worst case
@@ -13,7 +13,7 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -28,21 +28,22 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::branch_and_bound;
+/// use subset_sum::{branch_and_bound, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = branch_and_bound(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = branch_and_bound(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn branch_and_bound(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
-    let mut sorted: Vec<(u64, usize)> = numbers
+pub fn branch_and_bound(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    // Input is already sorted, create indexed version
+    let numbers = input.numbers();
+    let sorted: Vec<(u64, usize)> = numbers
         .iter()
         .copied()
         .enumerate()
         .map(|(i, x)| (x, i))
         .collect();
-    sorted.sort_by_key(|&(x, _)| x);
 
     // precompute suffix sums (max possible sum from index i onward)
     let mut suffix_sum = vec![0u64; sorted.len() + 1];
@@ -59,7 +60,7 @@ pub fn branch_and_bound(numbers: &[u64], target: u64, verbose: bool) -> Algorith
         numbers.len(),
         target
     );
-    verbose_log!(verbose, "[Branch and Bound] Sorted: {:?}", sorted);
+    verbose_log!(verbose, "[Branch and Bound] Numbers: {:?}", sorted);
 
     fn recurse(
         sorted: &[(u64, usize)],

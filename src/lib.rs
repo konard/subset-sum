@@ -8,6 +8,16 @@
 //! Given a set of natural numbers and a target sum, determine if there exists
 //! a subset that adds up to exactly the target sum.
 //!
+//! # Input Model
+//!
+//! The input is modeled as a **set** of natural numbers, not a multiset. This means:
+//! - Each number must be unique (no duplicates allowed)
+//! - Numbers are automatically sorted for algorithm optimization
+//! - The [`InputSet`] struct provides immutable, preprocessed input with min/max/sum
+//!
+//! This design moves sorting and uniqueness verification outside of individual
+//! algorithm implementations, ensuring fair benchmarking and consistent behavior.
+//!
 //! # Algorithms
 //!
 //! - **Smart Brute Force**: O(2^n) optimized - with power-of-two detection (by konard)
@@ -25,12 +35,13 @@
 //! # Example
 //!
 //! ```
-//! use subset_sum::{brute_force, AlgorithmResult};
+//! use subset_sum::{InputSet, brute_force, AlgorithmResult};
 //!
-//! let numbers = vec![3, 7, 1, 8, 4];
+//! // Create an InputSet from numbers (validates uniqueness and sorts)
+//! let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
 //! let target = 15;
 //!
-//! let result = brute_force(&numbers, target, false);
+//! let result = brute_force(&input, target, false);
 //! assert!(result.solution.is_some());
 //! ```
 
@@ -41,6 +52,9 @@ pub use algorithms::{
     incremental_pruning, max_first_reduction, meet_in_middle, meet_in_middle_hash, randomized,
     smart_brute_force,
 };
+
+// Re-export InputSet and InputSetError for public API
+// (They are defined in this file, so no need to re-export, just documenting they're public)
 
 /// Library version from Cargo.toml.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -62,6 +76,261 @@ impl AlgorithmResult {
     }
 }
 
+// ============================================================================
+// INPUT SET - Preprocessed, validated input for subset sum algorithms
+// ============================================================================
+
+/// Error type for `InputSet` creation failures.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InputSetError {
+    /// The input contains duplicate values.
+    DuplicateValues(Vec<u64>),
+    /// The input is empty.
+    EmptyInput,
+    /// The input contains zero, which is not a natural number.
+    ContainsZero,
+}
+
+impl std::fmt::Display for InputSetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DuplicateValues(dups) => {
+                write!(
+                    f,
+                    "Input contains duplicate values: {:?}. The subset sum problem operates on sets, not multisets. Each number must be unique.",
+                    dups
+                )
+            }
+            Self::EmptyInput => {
+                write!(f, "Input set cannot be empty.")
+            }
+            Self::ContainsZero => {
+                write!(
+                    f,
+                    "Input contains zero. All numbers must be natural numbers (positive integers)."
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for InputSetError {}
+
+/// A preprocessed, immutable input set for subset sum algorithms.
+///
+/// This struct ensures that input is:
+/// - Non-empty
+/// - Contains only natural numbers (positive integers, no zeros)
+/// - Contains only unique values (no duplicates)
+/// - Sorted in ascending order
+///
+/// It also precomputes useful values like `min`, `max`, and `total_sum`
+/// to enable algorithm optimizations without redundant computation.
+///
+/// # Why `InputSet`?
+///
+/// The subset sum problem is defined on **sets** of numbers, not multisets.
+/// A sorted sequence with unique elements is mathematically equivalent to a set.
+/// By validating and preprocessing input once, we:
+///
+/// 1. **Ensure correctness**: Duplicate values would make the problem ill-defined
+/// 2. **Enable fair benchmarking**: Sorting/validation time is excluded from algorithm measurements
+/// 3. **Simplify algorithms**: Algorithms can assume sorted, unique input
+/// 4. **Provide optimizations**: Min/max/sum are precomputed for pruning strategies
+///
+/// # Example
+///
+/// ```
+/// use subset_sum::InputSet;
+///
+/// // Valid input
+/// let input = InputSet::new(vec![5, 2, 8, 1]).unwrap();
+/// assert_eq!(input.numbers(), &[1, 2, 5, 8]); // Sorted
+/// assert_eq!(input.min(), 1);
+/// assert_eq!(input.max(), 8);
+/// assert_eq!(input.total_sum(), 16);
+///
+/// // Invalid: contains duplicates
+/// let result = InputSet::new(vec![3, 5, 3, 7]);
+/// assert!(result.is_err());
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InputSet {
+    /// Sorted, unique numbers.
+    numbers: Vec<u64>,
+    /// Minimum value in the set.
+    min: u64,
+    /// Maximum value in the set.
+    max: u64,
+    /// Sum of all numbers in the set.
+    total_sum: u64,
+}
+
+impl InputSet {
+    /// Creates a new `InputSet` from a vector of numbers.
+    ///
+    /// The numbers are validated to ensure:
+    /// - The vector is non-empty
+    /// - All values are positive (no zeros)
+    /// - All values are unique (no duplicates)
+    ///
+    /// The numbers are then sorted in ascending order.
+    ///
+    /// # Arguments
+    ///
+    /// * `numbers` - A vector of natural numbers
+    ///
+    /// # Returns
+    ///
+    /// `Ok(InputSet)` if the input is valid, `Err(InputSetError)` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The input is empty (`InputSetError::EmptyInput`)
+    /// - The input contains zero (`InputSetError::ContainsZero`)
+    /// - The input contains duplicates (`InputSetError::DuplicateValues`)
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use subset_sum::InputSet;
+    ///
+    /// let input = InputSet::new(vec![3, 1, 4, 1, 5]).unwrap_err();
+    /// // Error: duplicate value 1
+    /// ```
+    pub fn new(mut numbers: Vec<u64>) -> Result<Self, InputSetError> {
+        if numbers.is_empty() {
+            return Err(InputSetError::EmptyInput);
+        }
+
+        // Check for zeros
+        if numbers.contains(&0) {
+            return Err(InputSetError::ContainsZero);
+        }
+
+        // Sort first to make duplicate detection efficient
+        numbers.sort_unstable();
+
+        // Find duplicates
+        let mut duplicates: Vec<u64> = Vec::new();
+        for window in numbers.windows(2) {
+            if window[0] == window[1]
+                && (duplicates.is_empty() || duplicates.last() != Some(&window[0]))
+            {
+                duplicates.push(window[0]);
+            }
+        }
+
+        if !duplicates.is_empty() {
+            return Err(InputSetError::DuplicateValues(duplicates));
+        }
+
+        // Compute statistics
+        let min = numbers[0]; // Already sorted, first is min
+        let max = numbers[numbers.len() - 1]; // Last is max
+        let total_sum = numbers.iter().sum();
+
+        Ok(Self {
+            numbers,
+            min,
+            max,
+            total_sum,
+        })
+    }
+
+    /// Creates an `InputSet` from already sorted, unique numbers without validation.
+    ///
+    /// # Safety
+    ///
+    /// This is not unsafe in the Rust sense, but the caller must ensure:
+    /// - Numbers are sorted in ascending order
+    /// - Numbers contain no duplicates
+    /// - Numbers contain no zeros
+    /// - Numbers are non-empty
+    ///
+    /// This is useful for performance-critical paths where input is known to be valid.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use subset_sum::InputSet;
+    ///
+    /// // Only use this if you're absolutely sure the input is valid!
+    /// let input = InputSet::new_unchecked(vec![1, 2, 5, 8]);
+    /// ```
+    #[must_use]
+    pub fn new_unchecked(numbers: Vec<u64>) -> Self {
+        debug_assert!(!numbers.is_empty(), "InputSet cannot be empty");
+        debug_assert!(
+            numbers.iter().all(|&n| n > 0),
+            "InputSet cannot contain zeros"
+        );
+        debug_assert!(
+            numbers.windows(2).all(|w| w[0] < w[1]),
+            "InputSet must be sorted and unique"
+        );
+
+        let min = numbers[0];
+        let max = numbers[numbers.len() - 1];
+        let total_sum = numbers.iter().sum();
+
+        Self {
+            numbers,
+            min,
+            max,
+            total_sum,
+        }
+    }
+
+    /// Returns the sorted, unique numbers in the set.
+    #[must_use]
+    pub fn numbers(&self) -> &[u64] {
+        &self.numbers
+    }
+
+    /// Returns the number of elements in the set.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.numbers.len()
+    }
+
+    /// Returns `true` if the set is empty.
+    ///
+    /// Note: A valid `InputSet` is never empty, so this always returns `false`.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.numbers.is_empty()
+    }
+
+    /// Returns the minimum value in the set.
+    #[must_use]
+    pub const fn min(&self) -> u64 {
+        self.min
+    }
+
+    /// Returns the maximum value in the set.
+    #[must_use]
+    pub const fn max(&self) -> u64 {
+        self.max
+    }
+
+    /// Returns the sum of all numbers in the set.
+    #[must_use]
+    pub const fn total_sum(&self) -> u64 {
+        self.total_sum
+    }
+
+    /// Checks if a target sum is achievable (within bounds).
+    ///
+    /// Returns `false` if target is greater than the total sum of all numbers,
+    /// which means no solution can exist.
+    #[must_use]
+    pub const fn is_target_achievable(&self, target: u64) -> bool {
+        target <= self.total_sum
+    }
+}
+
 /// Macro for verbose logging.
 #[macro_export]
 macro_rules! verbose_log {
@@ -75,6 +344,22 @@ macro_rules! verbose_log {
 // ============================================================================
 // VERIFICATION
 // ============================================================================
+
+/// Verifies that a solution is correct for an `InputSet`.
+///
+/// # Arguments
+///
+/// * `input` - The input set that was searched
+/// * `target` - Target sum
+/// * `subset` - Proposed solution subset
+///
+/// # Returns
+///
+/// `true` if the subset sums to target and all elements are from the input set
+#[must_use]
+pub fn verify_solution_for_input(input: &InputSet, target: u64, subset: &[u64]) -> bool {
+    verify_solution(input.numbers(), target, subset)
+}
 
 /// Verifies that a solution is correct.
 ///
@@ -123,7 +408,7 @@ pub const ALGORITHM_NAMES: [&str; 11] = [
 /// # Arguments
 ///
 /// * `name` - Algorithm name (one of `ALGORITHM_NAMES`)
-/// * `numbers` - Input numbers
+/// * `input` - Preprocessed input set
 /// * `target` - Target sum
 /// * `verbose` - Enable verbose logging
 ///
@@ -133,22 +418,22 @@ pub const ALGORITHM_NAMES: [&str; 11] = [
 #[must_use]
 pub fn run_algorithm(
     name: &str,
-    numbers: &[u64],
+    input: &InputSet,
     target: u64,
     verbose: bool,
 ) -> Option<AlgorithmResult> {
     match name {
-        "smart_brute_force" => Some(smart_brute_force(numbers, target, verbose)),
-        "brute_force" => Some(brute_force(numbers, target, verbose)),
-        "backtracking" => Some(backtracking(numbers, target, verbose)),
-        "backtracking_pruned" => Some(backtracking_pruned(numbers, target, verbose)),
-        "dynamic_programming" => Some(dynamic_programming(numbers, target, verbose)),
-        "incremental_pruning" => Some(incremental_pruning(numbers, target, verbose)),
-        "max_first_reduction" => Some(max_first_reduction(numbers, target, verbose)),
-        "meet_in_middle" => Some(meet_in_middle(numbers, target, verbose)),
-        "meet_in_middle_hash" => Some(meet_in_middle_hash(numbers, target, verbose)),
-        "branch_and_bound" => Some(branch_and_bound(numbers, target, verbose)),
-        "randomized" => Some(randomized(numbers, target, verbose, 12345)),
+        "smart_brute_force" => Some(smart_brute_force(input, target, verbose)),
+        "brute_force" => Some(brute_force(input, target, verbose)),
+        "backtracking" => Some(backtracking(input, target, verbose)),
+        "backtracking_pruned" => Some(backtracking_pruned(input, target, verbose)),
+        "dynamic_programming" => Some(dynamic_programming(input, target, verbose)),
+        "incremental_pruning" => Some(incremental_pruning(input, target, verbose)),
+        "max_first_reduction" => Some(max_first_reduction(input, target, verbose)),
+        "meet_in_middle" => Some(meet_in_middle(input, target, verbose)),
+        "meet_in_middle_hash" => Some(meet_in_middle_hash(input, target, verbose)),
+        "branch_and_bound" => Some(branch_and_bound(input, target, verbose)),
+        "randomized" => Some(randomized(input, target, verbose, 12345)),
         _ => None,
     }
 }
@@ -159,27 +444,27 @@ mod tests {
 
     fn test_algorithm<F>(algo: F, name: &str)
     where
-        F: Fn(&[u64], u64, bool) -> AlgorithmResult,
+        F: Fn(&InputSet, u64, bool) -> AlgorithmResult,
     {
         // Test 1: Simple case with solution
-        let numbers = vec![3, 7, 1, 8, 4];
+        let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
         let target = 15;
-        let result = algo(&numbers, target, false);
+        let result = algo(&input, target, false);
         assert!(
             result.solution.is_some(),
             "{}: Should find solution for target 15",
             name
         );
         assert!(
-            verify_solution(&numbers, target, result.solution.as_ref().unwrap()),
+            verify_solution_for_input(&input, target, result.solution.as_ref().unwrap()),
             "{}: Solution should be valid",
             name
         );
 
         // Test 2: No solution exists
-        let numbers = vec![2, 4, 6, 8];
+        let input = InputSet::new(vec![2, 4, 6, 8]).unwrap();
         let target = 1;
-        let result = algo(&numbers, target, false);
+        let result = algo(&input, target, false);
         assert!(
             result.solution.is_none(),
             "{}: Should not find solution for target 1",
@@ -187,9 +472,9 @@ mod tests {
         );
 
         // Test 3: Target is zero (empty subset)
-        let numbers = vec![1, 2, 3];
+        let input = InputSet::new(vec![1, 2, 3]).unwrap();
         let target = 0;
-        let result = algo(&numbers, target, false);
+        let result = algo(&input, target, false);
         assert!(
             result.solution.is_some(),
             "{}: Should find empty subset for target 0",
@@ -203,9 +488,9 @@ mod tests {
         );
 
         // Test 4: Single element equals target
-        let numbers = vec![5];
+        let input = InputSet::new(vec![5]).unwrap();
         let target = 5;
-        let result = algo(&numbers, target, false);
+        let result = algo(&input, target, false);
         assert!(
             result.solution.is_some(),
             "{}: Should find single element solution",
@@ -213,16 +498,16 @@ mod tests {
         );
 
         // Test 5: Multiple elements sum to target
-        let numbers = vec![1, 2, 3, 4, 5];
+        let input = InputSet::new(vec![1, 2, 3, 4, 5]).unwrap();
         let target = 10;
-        let result = algo(&numbers, target, false);
+        let result = algo(&input, target, false);
         assert!(
             result.solution.is_some(),
             "{}: Should find solution for target 10",
             name
         );
         assert!(
-            verify_solution(&numbers, target, result.solution.as_ref().unwrap()),
+            verify_solution_for_input(&input, target, result.solution.as_ref().unwrap()),
             "{}: Solution should be valid for target 10",
             name
         );
@@ -236,12 +521,12 @@ mod tests {
     #[test]
     fn test_smart_brute_force_power_of_two() {
         // Test power of two optimization
-        let numbers = vec![1, 2, 4, 8, 16, 32];
+        let input = InputSet::new(vec![1, 2, 4, 8, 16, 32]).unwrap();
         let target = 21; // 1 + 4 + 16 = 21
-        let result = smart_brute_force(&numbers, target, false);
+        let result = smart_brute_force(&input, target, false);
         assert!(result.solution.is_some());
-        assert!(verify_solution(
-            &numbers,
+        assert!(verify_solution_for_input(
+            &input,
             target,
             result.solution.as_ref().unwrap()
         ));
@@ -294,8 +579,8 @@ mod tests {
 
     #[test]
     fn test_randomized() {
-        let algo = |numbers: &[u64], target: u64, verbose: bool| {
-            randomized(numbers, target, verbose, 12345)
+        let algo = |input: &InputSet, target: u64, verbose: bool| {
+            randomized(input, target, verbose, 12345)
         };
         test_algorithm(algo, "randomized");
     }
@@ -317,11 +602,11 @@ mod tests {
 
     #[test]
     fn test_run_algorithm() {
-        let numbers = vec![3, 7, 1, 8, 4];
+        let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
         let target = 15;
 
         for name in ALGORITHM_NAMES {
-            let result = run_algorithm(name, &numbers, target, false);
+            let result = run_algorithm(name, &input, target, false);
             assert!(result.is_some(), "Algorithm {} should exist", name);
             let result = result.unwrap();
             assert!(
@@ -332,33 +617,33 @@ mod tests {
         }
 
         // Invalid algorithm name
-        assert!(run_algorithm("invalid", &numbers, target, false).is_none());
+        assert!(run_algorithm("invalid", &input, target, false).is_none());
     }
 
     #[test]
     fn test_steps_counted() {
-        let numbers = vec![1, 2, 3, 4, 5];
+        let input = InputSet::new(vec![1, 2, 3, 4, 5]).unwrap();
         let target = 100; // impossible
 
         // All algorithms should count steps
-        let result = brute_force(&numbers, target, false);
+        let result = brute_force(&input, target, false);
         assert!(result.steps > 0, "Brute force should count steps");
 
-        let result = backtracking(&numbers, target, false);
+        let result = backtracking(&input, target, false);
         assert!(result.steps > 0, "Backtracking should count steps");
 
-        let result = dynamic_programming(&numbers, target, false);
+        let result = dynamic_programming(&input, target, false);
         assert!(result.steps > 0, "DP should count steps");
     }
 
     #[test]
     fn test_larger_input() {
         // Test with moderately larger input (n=15)
-        let numbers: Vec<u64> = (1..=15).collect();
+        let input = InputSet::new((1..=15).collect()).unwrap();
         let target = 50;
 
         for name in ALGORITHM_NAMES {
-            let result = run_algorithm(name, &numbers, target, false);
+            let result = run_algorithm(name, &input, target, false);
             assert!(result.is_some());
             let result = result.unwrap();
             assert!(
@@ -367,10 +652,86 @@ mod tests {
                 name
             );
             assert!(
-                verify_solution(&numbers, target, result.solution.as_ref().unwrap()),
+                verify_solution_for_input(&input, target, result.solution.as_ref().unwrap()),
                 "Algorithm {} should produce valid solution for n=15",
                 name
             );
         }
+    }
+
+    // =========================================================================
+    // InputSet tests
+    // =========================================================================
+
+    #[test]
+    fn test_input_set_creation() {
+        // Valid input
+        let input = InputSet::new(vec![5, 2, 8, 1]).unwrap();
+        assert_eq!(input.numbers(), &[1, 2, 5, 8]); // Sorted
+        assert_eq!(input.min(), 1);
+        assert_eq!(input.max(), 8);
+        assert_eq!(input.total_sum(), 16);
+        assert_eq!(input.len(), 4);
+    }
+
+    #[test]
+    fn test_input_set_rejects_duplicates() {
+        let result = InputSet::new(vec![3, 5, 3, 7]);
+        assert!(result.is_err());
+        match result {
+            Err(InputSetError::DuplicateValues(dups)) => {
+                assert_eq!(dups, vec![3]);
+            }
+            _ => panic!("Expected DuplicateValues error"),
+        }
+    }
+
+    #[test]
+    fn test_input_set_rejects_multiple_duplicates() {
+        let result = InputSet::new(vec![3, 5, 3, 7, 5, 5]);
+        assert!(result.is_err());
+        match result {
+            Err(InputSetError::DuplicateValues(dups)) => {
+                assert!(dups.contains(&3));
+                assert!(dups.contains(&5));
+            }
+            _ => panic!("Expected DuplicateValues error"),
+        }
+    }
+
+    #[test]
+    fn test_input_set_rejects_empty() {
+        let result = InputSet::new(vec![]);
+        assert!(result.is_err());
+        match result {
+            Err(InputSetError::EmptyInput) => {}
+            _ => panic!("Expected EmptyInput error"),
+        }
+    }
+
+    #[test]
+    fn test_input_set_rejects_zero() {
+        let result = InputSet::new(vec![1, 0, 3]);
+        assert!(result.is_err());
+        match result {
+            Err(InputSetError::ContainsZero) => {}
+            _ => panic!("Expected ContainsZero error"),
+        }
+    }
+
+    #[test]
+    fn test_input_set_is_target_achievable() {
+        let input = InputSet::new(vec![1, 2, 3]).unwrap();
+        assert!(input.is_target_achievable(6)); // sum = 6
+        assert!(input.is_target_achievable(5));
+        assert!(!input.is_target_achievable(7)); // > sum
+    }
+
+    #[test]
+    fn test_input_set_unchecked() {
+        let input = InputSet::new_unchecked(vec![1, 2, 5, 8]);
+        assert_eq!(input.numbers(), &[1, 2, 5, 8]);
+        assert_eq!(input.min(), 1);
+        assert_eq!(input.max(), 8);
     }
 }

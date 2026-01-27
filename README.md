@@ -303,22 +303,29 @@ cargo build --release
 ### Library Usage
 
 ```rust
-use subset_sum::{brute_force, dynamic_programming, verify_solution};
+use subset_sum::{brute_force, InputSet, verify_solution};
 
 fn main() {
-    let numbers = vec![3, 7, 1, 8, 4];
+    // Create validated, preprocessed input
+    let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
     let target = 15;
 
     // Run brute force algorithm
-    let result = brute_force(&numbers, target, false);
+    let result = brute_force(&input, target, false);
 
     if let Some(subset) = &result.solution {
         println!("Found subset: {:?}", subset);
-        println!("Valid: {}", verify_solution(&numbers, target, subset));
+        println!("Valid: {}", verify_solution(input.numbers(), target, subset));
     }
     println!("Steps taken: {}", result.steps);
 }
 ```
+
+**Note:** All algorithms require an `InputSet`, which validates input:
+- Rejects empty input
+- Rejects zeros (only natural numbers allowed)
+- Rejects duplicate values (subset sum operates on sets, not multisets)
+- Automatically sorts numbers and precomputes min/max/sum
 
 ### CLI Usage
 

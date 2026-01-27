@@ -1,6 +1,6 @@
 //! Brute force algorithms for the subset sum problem.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 // ============================================================================
 // 1. SMART BRUTE FORCE - O(2^n) but with optimizations
@@ -11,14 +11,13 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// This algorithm (by konard) includes several optimizations:
 /// - Filters out numbers greater than target
-/// - Sorts numbers for efficient processing
 /// - Special case: if target is a single number in set, returns immediately
 /// - Special case: if target can be built from available powers of two, returns immediately
 /// - Falls back to brute force for general case
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -33,30 +32,34 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::smart_brute_force;
+/// use subset_sum::{smart_brute_force, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = smart_brute_force(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = smart_brute_force(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
-    if numbers.is_empty() {
-        verbose_log!(verbose, "[Smart Brute Force] Empty input");
-        return AlgorithmResult::new(if target == 0 { Some(vec![]) } else { None }, 0);
+pub fn smart_brute_force(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    // Check for target = 0 (empty subset)
+    if target == 0 {
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Target is 0, returning empty subset"
+        );
+        return AlgorithmResult::new(Some(vec![]), 0);
     }
 
-    // Filter and sort numbers
-    let mut sorted_numbers: Vec<u64> = numbers
+    // Filter numbers <= target (input is already sorted)
+    let sorted_numbers: Vec<u64> = input
+        .numbers()
         .iter()
         .copied()
-        .filter(|&x| x >= 1 && x <= target)
+        .filter(|&x| x <= target)
         .collect();
-    sorted_numbers.sort_unstable();
 
     verbose_log!(
         verbose,
-        "[Smart Brute Force] Filtered and sorted numbers: {:?}",
+        "[Smart Brute Force] Filtered numbers (<= target): {:?}",
         sorted_numbers
     );
 
@@ -65,7 +68,7 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
             verbose,
             "[Smart Brute Force] No valid numbers after filtering"
         );
-        return AlgorithmResult::new(if target == 0 { Some(vec![]) } else { None }, 0);
+        return AlgorithmResult::new(None, 0);
     }
 
     let n = sorted_numbers.len();
@@ -79,6 +82,14 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
     verbose_log!(
         verbose,
         "[Smart Brute Force] Total sum of numbers: {}",
+        total_sum
+    );
+
+    verbose_log!(verbose, "[Smart Brute Force] Minimum number: {}", min);
+    verbose_log!(verbose, "[Smart Brute Force] Maximum number: {}", max);
+    verbose_log!(
+        verbose,
+        "[Smart Brute Force] Total sum of filtered numbers: {}",
         total_sum
     );
 
@@ -110,15 +121,6 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
             total_sum
         );
         return AlgorithmResult::new(None, 0);
-    }
-
-    // Check if target is 0
-    if target == 0 {
-        verbose_log!(
-            verbose,
-            "[Smart Brute Force] Target is 0, returning empty subset"
-        );
-        return AlgorithmResult::new(Some(vec![]), 0);
     }
 
     // Build bitmap of existing powers of two
@@ -253,7 +255,7 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -263,19 +265,20 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
 ///
 /// # Time Complexity
 ///
-/// O(2^n) where n is the length of numbers
+/// O(2^n) where n is the length of input
 ///
 /// # Examples
 ///
 /// ```
-/// use subset_sum::brute_force;
+/// use subset_sum::{brute_force, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = brute_force(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = brute_force(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn brute_force(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn brute_force(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    let numbers = input.numbers();
     let n = numbers.len();
     let mut steps: u64 = 0;
 

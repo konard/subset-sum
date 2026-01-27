@@ -1,6 +1,6 @@
 //! Dynamic programming algorithm for the subset sum problem.
 
-use crate::{verbose_log, AlgorithmResult};
+use crate::{verbose_log, AlgorithmResult, InputSet};
 
 // ============================================================================
 // 4. DYNAMIC PROGRAMMING - O(n * target)
@@ -13,7 +13,7 @@ use crate::{verbose_log, AlgorithmResult};
 ///
 /// # Arguments
 ///
-/// * `numbers` - Slice of natural numbers to search through
+/// * `input` - Preprocessed input set (sorted, unique numbers with precomputed min/max/sum)
 /// * `target` - Target sum to find
 /// * `verbose` - Enable verbose logging output
 ///
@@ -28,14 +28,15 @@ use crate::{verbose_log, AlgorithmResult};
 /// # Examples
 ///
 /// ```
-/// use subset_sum::dynamic_programming;
+/// use subset_sum::{dynamic_programming, InputSet};
 ///
-/// let numbers = vec![3, 7, 1, 8, 4];
-/// let result = dynamic_programming(&numbers, 15, false);
+/// let input = InputSet::new(vec![3, 7, 1, 8, 4]).unwrap();
+/// let result = dynamic_programming(&input, 15, false);
 /// assert!(result.solution.is_some());
 /// ```
 #[must_use]
-pub fn dynamic_programming(numbers: &[u64], target: u64, verbose: bool) -> AlgorithmResult {
+pub fn dynamic_programming(input: &InputSet, target: u64, verbose: bool) -> AlgorithmResult {
+    let numbers = input.numbers();
     let mut steps: u64 = 0;
 
     verbose_log!(
