@@ -156,50 +156,43 @@ Proof.
   - exact Hrest.
 Qed.
 
-(** Helper: insertSorted head when x < y *)
-Lemma insertSorted_lt : forall x y rest,
-  x < y -> insertSorted x (y :: rest) = x :: y :: rest.
+(** Key insight: the head of insertSorted x (y :: ys) is min(x, y) *)
+Lemma insertSorted_head_le : forall x y ys h hs,
+  insertSorted x (y :: ys) = h :: hs ->
+  h <= x /\ h <= y.
 Proof.
-  intros x y rest Hxy.
-  simpl. rewrite <- Nat.ltb_lt in Hxy. rewrite Hxy. reflexivity.
+  intros x y ys h hs Heq.
+  simpl in Heq.
+  destruct (x <? y) eqn:Hxy.
+  - (* x < y: result is x :: y :: ys *)
+    injection Heq as Hh Hrest.
+    subst h.
+    apply Nat.ltb_lt in Hxy.
+    lia.
+  - destruct (x =? y) eqn:Hxy_eq.
+    + (* x = y: result is y :: ys *)
+      injection Heq as Hh Hrest.
+      subst h.
+      apply Nat.eqb_eq in Hxy_eq.
+      lia.
+    + (* x > y: result is y :: insertSorted x ys *)
+      injection Heq as Hh Hrest.
+      subst h.
+      apply Nat.ltb_ge in Hxy.
+      lia.
 Qed.
 
-(** Helper: insertSorted skip when x = y *)
-Lemma insertSorted_eq : forall x y rest,
-  x = y -> insertSorted x (y :: rest) = y :: rest.
-Proof.
-  intros x y rest Hxy.
-  simpl.
-  assert (Hnlt: (x <? y) = false) by (rewrite Nat.ltb_ge; lia).
-  rewrite Hnlt.
-  rewrite <- Nat.eqb_eq in Hxy. rewrite Hxy. reflexivity.
-Qed.
-
-(** Helper: insertSorted recursive when x > y *)
-Lemma insertSorted_gt : forall x y rest,
-  x > y -> insertSorted x (y :: rest) = y :: insertSorted x rest.
-Proof.
-  intros x y rest Hxy.
-  simpl.
-  assert (Hnlt: (x <? y) = false) by (rewrite Nat.ltb_ge; lia).
-  assert (Hneq: (x =? y) = false) by (rewrite Nat.eqb_neq; lia).
-  rewrite Hnlt. rewrite Hneq. reflexivity.
-Qed.
-
-(** Key insight: the head of insertSorted x l is min(x, head(l)) *)
-Lemma insertSorted_head_le : forall x y ys,
-  match insertSorted x (y :: ys) with
-  | [] => False
-  | h :: _ => h <= x /\ h <= y
-  end.
+(** insertSorted into a non-empty list is non-empty *)
+Lemma insertSorted_non_empty : forall x y ys,
+  exists h hs, insertSorted x (y :: ys) = h :: hs.
 Proof.
   intros x y ys.
   simpl.
   destruct (x <? y) eqn:Hxy.
-  - simpl. apply Nat.ltb_lt in Hxy. lia.
+  - exists x, (y :: ys). reflexivity.
   - destruct (x =? y) eqn:Hxy_eq.
-    + simpl. apply Nat.eqb_eq in Hxy_eq. lia.
-    + simpl. apply Nat.ltb_ge in Hxy. lia.
+    + exists y, ys. reflexivity.
+    + exists y, (insertSorted x ys). reflexivity.
 Qed.
 
 (** insertSorted preserves the strictly ascending property *)
@@ -233,20 +226,17 @@ Proof.
            assert (Hrest : StrictlyAscending (z :: zs)) by (apply strictly_ascending_tail in H; exact H).
            (* Apply IH to get that insertSorted x (z :: zs) is strictly ascending *)
            specialize (IH x Hrest).
-           (* Now we need to show y < head(insertSorted x (z :: zs)) *)
-           pose proof (insertSorted_head_le x z zs) as Hhead.
-           destruct (insertSorted x (z :: zs)) as [| h hs] eqn:Heq.
-           ++ (* Cannot be empty - contradiction *)
-              simpl in Heq.
-              destruct (x <? z); [discriminate | ].
-              destruct (x =? z); discriminate.
-           ++ (* h :: hs *)
-              destruct Hhead as [Hhx Hhz].
-              simpl. split.
-              ** (* y < h: since h <= z and y < z *)
-                 lia.
-              ** (* StrictlyAscending (h :: hs) *)
-                 rewrite <- Heq in IH. exact IH.
+           (* Get the head of insertSorted x (z :: zs) *)
+           destruct (insertSorted_non_empty x z zs) as [h [hs Heq]].
+           (* Get bounds on h *)
+           destruct (insertSorted_head_le x z zs h hs Heq) as [Hhx Hhz].
+           (* Rewrite with the equation *)
+           rewrite Heq.
+           simpl. split.
+           ++ (* y < h: since h <= z and y < z *)
+              lia.
+           ++ (* StrictlyAscending (h :: hs) *)
+              rewrite <- Heq. exact IH.
 Qed.
 
 (** toOrderedUnique produces strictly ascending lists *)
