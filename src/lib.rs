@@ -15,6 +15,7 @@
 //! - **Backtracking**: O(2^n) worst case - recursive with early termination
 //! - **Backtracking Pruned**: O(2^n) worst case - with sum-based pruning
 //! - **Dynamic Programming**: O(n * target) - pseudo-polynomial time
+//! - **Incremental Pruning**: O(2^n) worst case - level-wise subset construction with pruning
 //! - **Meet in the Middle**: O(2^(n/2)) - splits array, uses binary search
 //! - **Meet in the Middle (Hash)**: O(2^(n/2)) - uses hash set for lookup
 //! - **Branch and Bound**: O(2^n) worst case - intelligent pruning
@@ -36,7 +37,7 @@ mod algorithms;
 
 pub use algorithms::{
     backtracking, backtracking_pruned, branch_and_bound, brute_force, dynamic_programming,
-    meet_in_middle, meet_in_middle_hash, randomized, smart_brute_force,
+    incremental_pruning, meet_in_middle, meet_in_middle_hash, randomized, smart_brute_force,
 };
 
 /// Library version from Cargo.toml.
@@ -101,12 +102,13 @@ pub fn verify_solution(numbers: &[u64], target: u64, subset: &[u64]) -> bool {
 }
 
 /// All available algorithm names.
-pub const ALGORITHM_NAMES: [&str; 9] = [
+pub const ALGORITHM_NAMES: [&str; 10] = [
     "smart_brute_force",
     "brute_force",
     "backtracking",
     "backtracking_pruned",
     "dynamic_programming",
+    "incremental_pruning",
     "meet_in_middle",
     "meet_in_middle_hash",
     "branch_and_bound",
@@ -138,6 +140,7 @@ pub fn run_algorithm(
         "backtracking" => Some(backtracking(numbers, target, verbose)),
         "backtracking_pruned" => Some(backtracking_pruned(numbers, target, verbose)),
         "dynamic_programming" => Some(dynamic_programming(numbers, target, verbose)),
+        "incremental_pruning" => Some(incremental_pruning(numbers, target, verbose)),
         "meet_in_middle" => Some(meet_in_middle(numbers, target, verbose)),
         "meet_in_middle_hash" => Some(meet_in_middle_hash(numbers, target, verbose)),
         "branch_and_bound" => Some(branch_and_bound(numbers, target, verbose)),
@@ -273,6 +276,11 @@ mod tests {
     #[test]
     fn test_branch_and_bound() {
         test_algorithm(branch_and_bound, "branch_and_bound");
+    }
+
+    #[test]
+    fn test_incremental_pruning() {
+        test_algorithm(incremental_pruning, "incremental_pruning");
     }
 
     #[test]

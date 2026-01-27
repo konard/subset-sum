@@ -285,6 +285,10 @@ fn print_complexity_summary() {
     );
     println!(
         "{:<25} {:<20} {:<20}",
+        "incremental_pruning", "O(2^n) worst", "O(C(n,k))"
+    );
+    println!(
+        "{:<25} {:<20} {:<20}",
         "meet_in_middle", "O(2^(n/2))", "O(2^(n/2))"
     );
     println!(
@@ -306,6 +310,7 @@ fn print_complexity_summary() {
     println!("• Smart Brute Force: Optimized with power-of-two detection");
     println!("• Meet in Middle: Best for moderate n (25-40), any target size");
     println!("• Dynamic Programming: Best when target value is small");
+    println!("• Incremental Pruning: Level-wise search, good when many subsets exceed target");
     println!("• Backtracking Pruned: Best for small targets with positive numbers");
     println!("• Branch and Bound: Good all-around with intelligent pruning");
     println!("• Brute Force: Only for n < 20");
