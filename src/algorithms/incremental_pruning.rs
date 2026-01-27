@@ -95,7 +95,10 @@ pub fn incremental_pruning(numbers: &[u64], target: u64, verbose: bool) -> Algor
 
     // Handle edge cases
     if target == 0 {
-        verbose_log!(verbose, "[Incremental Pruning] Target is 0, returning empty subset");
+        verbose_log!(
+            verbose,
+            "[Incremental Pruning] Target is 0, returning empty subset"
+        );
         return AlgorithmResult::new(Some(Vec::new()), 0);
     }
 
@@ -115,7 +118,10 @@ pub fn incremental_pruning(numbers: &[u64], target: u64, verbose: bool) -> Algor
     let n = n.min(63);
 
     // Check for single-element solutions (k=1)
-    verbose_log!(verbose, "[Incremental Pruning] Checking single elements (k=1)");
+    verbose_log!(
+        verbose,
+        "[Incremental Pruning] Checking single elements (k=1)"
+    );
     for (i, &num) in numbers.iter().take(n).enumerate() {
         steps += 1;
         if num == target {
