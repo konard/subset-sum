@@ -146,11 +146,14 @@ Proof.
   - simpl in H. destruct H as [_ Hrest]. exact Hrest.
 Qed.
 
-(** Helper: insertSorted into empty list *)
-Lemma insertSorted_nil : forall x,
-  insertSorted x [] = [x].
+(** Helper: cons preserves strictly ascending if head is smaller than all *)
+Lemma strictly_ascending_cons : forall x y rest,
+  x < y -> StrictlyAscending (y :: rest) -> StrictlyAscending (x :: y :: rest).
 Proof.
-  intro x. reflexivity.
+  intros x y rest Hxy Hrest.
+  simpl. split.
+  - exact Hxy.
+  - exact Hrest.
 Qed.
 
 (** Helper: insertSorted head when x < y *)
@@ -183,74 +186,53 @@ Proof.
   rewrite Hnlt. rewrite Hneq. reflexivity.
 Qed.
 
-(** The first element of insertSorted result *)
-Lemma insertSorted_head_min : forall x l,
-  StrictlyAscending l ->
-  match l with
-  | [] => insertSorted x l = [x]
-  | y :: _ =>
-    (x < y -> insertSorted x l = x :: l) /\
-    (x = y -> insertSorted x l = l) /\
-    (x > y -> exists rest', insertSorted x l = y :: rest')
-  end.
-Proof.
-  intros x l H.
-  destruct l as [| y ys].
-  - reflexivity.
-  - split.
-    + intro Hlt. apply insertSorted_lt. exact Hlt.
-    + split.
-      * intro Heq. apply insertSorted_eq. exact Heq.
-      * intro Hgt. exists (insertSorted x ys). apply insertSorted_gt. exact Hgt.
-Qed.
-
 (** insertSorted preserves the strictly ascending property *)
-Theorem insertSorted_preserves_ascending : forall x l,
+Theorem insertSorted_preserves_ascending : forall l x,
   StrictlyAscending l -> StrictlyAscending (insertSorted x l).
 Proof.
-  intros x l. generalize dependent x.
-  induction l as [| y rest IH].
+  induction l as [| y ys IH].
   - (* l = [] *)
     intros x H. simpl. exact I.
-  - (* l = y :: rest *)
+  - (* l = y :: ys *)
     intros x H.
-    destruct (Nat.lt_trichotomy x y) as [Hlt | [Heq | Hgt]].
+    simpl.
+    destruct (x <? y) eqn:Hxy.
     + (* x < y *)
-      rewrite insertSorted_lt by assumption.
-      simpl. split.
-      * exact Hlt.
-      * exact H.
-    + (* x = y *)
-      rewrite insertSorted_eq by assumption.
-      exact H.
-    + (* x > y *)
-      rewrite insertSorted_gt by assumption.
-      destruct rest as [| z zs].
-      * (* rest = [] *)
-        simpl. split.
-        -- exact Hgt.
-        -- exact I.
-      * (* rest = z :: zs *)
-        assert (Hyz : y < z) by (apply strictly_ascending_head in H; exact H).
-        assert (Hrest : StrictlyAscending (z :: zs)) by (apply strictly_ascending_tail in H; exact H).
-        destruct (Nat.lt_trichotomy x z) as [Hxz_lt | [Hxz_eq | Hxz_gt]].
-        -- (* x < z *)
-           rewrite insertSorted_lt by assumption.
-           simpl. split.
-           ++ exact Hgt.
-           ++ split.
-              ** exact Hxz_lt.
+      apply Nat.ltb_lt in Hxy.
+      simpl. split; [exact Hxy | exact H].
+    + destruct (x =? y) eqn:Hxy_eq.
+      * (* x = y *)
+        exact H.
+      * (* x > y *)
+        apply Nat.ltb_ge in Hxy.
+        apply Nat.eqb_neq in Hxy_eq.
+        assert (Hgt : x > y) by lia.
+        clear Hxy Hxy_eq.
+        (* Now we need to show StrictlyAscending (y :: insertSorted x ys) *)
+        destruct ys as [| z zs].
+        -- (* ys = [] *)
+           simpl. split; [exact Hgt | exact I].
+        -- (* ys = z :: zs *)
+           assert (Hyz : y < z) by (apply strictly_ascending_head in H; exact H).
+           assert (Hrest : StrictlyAscending (z :: zs)) by (apply strictly_ascending_tail in H; exact H).
+           (* Case analysis on x vs z *)
+           simpl.
+           destruct (x <? z) eqn:Hxz.
+           ++ (* x < z *)
+              apply Nat.ltb_lt in Hxz.
+              simpl. repeat split.
+              ** exact Hgt.
+              ** exact Hxz.
               ** exact Hrest.
-        -- (* x = z *)
-           rewrite insertSorted_eq by assumption.
-           simpl. split.
-           ++ exact Hyz.
-           ++ exact Hrest.
-        -- (* x > z *)
-           rewrite insertSorted_gt by assumption.
-           simpl. split.
-           ++ exact Hyz.
-           ++ apply IH. exact Hrest.
+           ++ destruct (x =? z) eqn:Hxz_eq.
+              ** (* x = z *)
+                 simpl. split; [exact Hyz | exact Hrest].
+              ** (* x > z *)
+                 apply Nat.ltb_ge in Hxz.
+                 apply Nat.eqb_neq in Hxz_eq.
+                 simpl. split.
+                 --- exact Hyz.
+                 --- apply IH. exact Hrest.
 Qed.
 
 (** toOrderedUnique produces strictly ascending lists *)
