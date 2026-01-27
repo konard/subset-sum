@@ -126,14 +126,22 @@ fn validate_target(target: u64) -> Result<(), String> {
     Ok(())
 }
 
+const MAX_RANDOM_NUMBER: u64 = 64;
+const MAX_RANDOM_NUMBER_SET_SIZE: usize = 64;
+const MAX_RANDOM_TARGET: u64 = 256;
+
+// const MAX_RANDOM_NUMBER: u64 = 16;
+// const MAX_RANDOM_NUMBER_SET_SIZE: usize = 8;
+// const MAX_RANDOM_TARGET: u64 = 64;
+
 /// Generates a random set of unique numbers.
 /// Size: random 1-64, each number: random 1-64
 fn generate_random_numbers() -> Vec<u64> {
     let mut rng = rand::thread_rng();
-    let size = rng.gen_range(1..=64);
+    let size = rng.gen_range(1..=MAX_RANDOM_NUMBER_SET_SIZE);
 
     // Create a pool of numbers 1-64 and shuffle to pick unique ones
-    let mut pool: Vec<u64> = (1..=64).collect();
+    let mut pool: Vec<u64> = (1..=MAX_RANDOM_NUMBER).collect();
     pool.shuffle(&mut rng);
 
     // Take the first `size` numbers
@@ -143,7 +151,7 @@ fn generate_random_numbers() -> Vec<u64> {
 /// Generates a random target sum between 1 and 256.
 fn generate_random_target() -> u64 {
     let mut rng = rand::thread_rng();
-    rng.gen_range(1..=256)
+    rng.gen_range(1..=MAX_RANDOM_TARGET)
 }
 
 fn run_single_algorithm(
