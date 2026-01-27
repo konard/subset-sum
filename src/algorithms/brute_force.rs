@@ -82,6 +82,15 @@ pub fn smart_brute_force(numbers: &[u64], target: u64, verbose: bool) -> Algorit
         total_sum
     );
 
+    if min == target {
+        verbose_log!(
+            verbose,
+            "[Smart Brute Force] Min equals target, returning [{}]",
+            min
+        );
+        return AlgorithmResult::new(Some(vec![min]), 1);
+    }
+
     // Special case: max equals target
     if max == target {
         verbose_log!(
