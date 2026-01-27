@@ -20,17 +20,17 @@ struct SubsetState {
 }
 
 impl SubsetState {
-    fn new(mask: u64, sum: u64) -> Self {
+    const fn new(mask: u64, sum: u64) -> Self {
         Self { mask, sum }
     }
 
     /// Check if element at index i is in this subset
-    fn contains(&self, i: usize) -> bool {
+    const fn contains(&self, i: usize) -> bool {
         (self.mask & (1u64 << i)) != 0
     }
 
     /// Create a new subset by adding element at index i with value v
-    fn extend(&self, i: usize, v: u64) -> Self {
+    const fn extend(&self, i: usize, v: u64) -> Self {
         Self {
             mask: self.mask | (1u64 << i),
             sum: self.sum.saturating_add(v),
