@@ -2,6 +2,16 @@
 
 This document lists the mathematical assumptions, properties, and conjectures that each subset sum algorithm relies upon for correctness and equivalence.
 
+## Formally Verified Statements
+
+The following statements have been formally proven using theorem provers. Formal proofs are located in the [`proofs/`](proofs/) directory.
+
+| Statement | Status | Proof Location |
+|-----------|--------|----------------|
+| Set-unique-sequence equivalence | **PROVEN** | [`proofs/set_sequence_equivalence/`](proofs/set_sequence_equivalence/) |
+
+These proofs are automatically verified by CI using Lean 4 and Rocq (Coq) theorem provers.
+
 ---
 
 ## Problem Definition
@@ -40,7 +50,7 @@ These foundational assumptions apply to every algorithm in this library:
 
 ### Structural Assumptions
 
-- **Set-unique-sequence equivalence**: A set is equivalent to an ordered sequence (array) containing no duplicate items. Each element appears exactly once in the sequence.
+- **Set-unique-sequence equivalence**: A set is equivalent to an ordered sequence (array) containing no duplicate items. Each element appears exactly once in the sequence. **[PROVEN]** - See formal proofs in [`proofs/set_sequence_equivalence/`](proofs/set_sequence_equivalence/) verified in both Lean 4 and Rocq (Coq).
 
 - **Set-sequence equivalence**: A set can be represented as an ordered sequence (array) with positional indexing. The order of elements does not affect which sums are achievable.
 

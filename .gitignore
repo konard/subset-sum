@@ -54,3 +54,11 @@ doc/
 # Log files
 *.log
 logs/
+
+# Rocq/Coq build artifacts
+*.vo
+*.vok
+*.vos
+*.glob
+*.aux
+.lia.cache
