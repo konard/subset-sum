@@ -156,30 +156,24 @@ Proof.
   - exact Hrest.
 Qed.
 
-(** Key insight: the head of insertSorted x (y :: ys) is min(x, y) *)
-Lemma insertSorted_head_le : forall x y ys h hs,
+(** Key insight: the head of insertSorted x (y :: ys) is either x or y *)
+Lemma insertSorted_head_cases : forall x y ys h hs,
   insertSorted x (y :: ys) = h :: hs ->
-  h <= x /\ h <= y.
+  h = x \/ h = y.
 Proof.
   intros x y ys h hs Heq.
   simpl in Heq.
   destruct (x <? y) eqn:Hxy.
   - (* x < y: result is x :: y :: ys *)
     injection Heq as Hh Hrest.
-    subst h.
-    apply Nat.ltb_lt in Hxy.
-    lia.
+    left. symmetry. exact Hh.
   - destruct (x =? y) eqn:Hxy_eq.
     + (* x = y: result is y :: ys *)
       injection Heq as Hh Hrest.
-      subst h.
-      apply Nat.eqb_eq in Hxy_eq.
-      lia.
+      right. symmetry. exact Hh.
     + (* x > y: result is y :: insertSorted x ys *)
       injection Heq as Hh Hrest.
-      subst h.
-      apply Nat.ltb_ge in Hxy.
-      lia.
+      right. symmetry. exact Hh.
 Qed.
 
 (** insertSorted into a non-empty list is non-empty *)
@@ -228,15 +222,17 @@ Proof.
            specialize (IH x Hrest).
            (* Get the head of insertSorted x (z :: zs) *)
            destruct (insertSorted_non_empty x z zs) as [h [hs Heq]].
-           (* Get bounds on h *)
-           destruct (insertSorted_head_le x z zs h hs Heq) as [Hhx Hhz].
-           (* Rewrite with the equation *)
-           rewrite Heq.
-           simpl. split.
-           ++ (* y < h: since h <= z and y < z *)
-              lia.
+           (* Get info about h: it's either x or z *)
+           assert (Hh_cases : h = x \/ h = z) by (apply (insertSorted_head_cases x z zs h hs Heq)).
+           (* Rewrite IH to use h :: hs form *)
+           rewrite Heq in IH.
+           (* Rewrite goal to use h :: hs *)
+           rewrite Heq. simpl.
+           split.
+           ++ (* y < h: follows from h = x \/ h = z, Hgt, Hyz *)
+              destruct Hh_cases as [Hh_is_x | Hh_is_z]; lia.
            ++ (* StrictlyAscending (h :: hs) *)
-              rewrite <- Heq. exact IH.
+              exact IH.
 Qed.
 
 (** toOrderedUnique produces strictly ascending lists *)
@@ -252,25 +248,74 @@ Qed.
 
 (** * Membership preservation *)
 
+(** Helper: In uses reverse equality *)
+Lemma In_singleton : forall (x y : nat), In y [x] <-> y = x.
+Proof.
+  intros x y. simpl. split.
+  - intro H. destruct H as [H | H]. symmetry. exact H. contradiction.
+  - intro H. left. symmetry. exact H.
+Qed.
+
+(** Helper: In cons unfolds with reverse equality *)
+Lemma In_cons_iff : forall (x y : nat) (l : list nat), In y (x :: l) <-> y = x \/ In y l.
+Proof.
+  intros x y l. simpl. split.
+  - intro H. destruct H as [H | H].
+    + left. symmetry. exact H.
+    + right. exact H.
+  - intro H. destruct H as [H | H].
+    + left. symmetry. exact H.
+    + right. exact H.
+Qed.
+
 (** Element membership is preserved by insertSorted *)
 Theorem mem_insertSorted : forall x y l,
   In y (insertSorted x l) <-> y = x \/ In y l.
 Proof.
   intros x y.
   induction l as [| z rest IH].
-  - simpl. tauto.
+  - (* l = [] : In y [x] <-> y = x \/ False *)
+    split.
+    + intro H. simpl in H. destruct H as [H | H].
+      * left. symmetry. exact H.
+      * contradiction.
+    + intro H. simpl. destruct H as [H | H].
+      * left. symmetry. exact H.
+      * contradiction.
   - simpl.
     destruct (x <? z) eqn:Hxz.
     + (* x < z *)
-      simpl. tauto.
+      split.
+      * intro H. simpl in H. destruct H as [H | H].
+        -- left. symmetry. exact H.
+        -- right. exact H.
+      * intro H. simpl. destruct H as [H | H].
+        -- left. symmetry. exact H.
+        -- right. exact H.
     + destruct (x =? z) eqn:Hxz_eq.
       * (* x = z *)
-        apply eqb_true_eq in Hxz_eq.
-        simpl. subst. tauto.
+        apply eqb_true_eq in Hxz_eq. subst z.
+        split.
+        -- intro H. simpl in H. destruct H as [H | H].
+           ++ left. symmetry. exact H.
+           ++ right. right. exact H.
+        -- intro H. simpl. destruct H as [H | H].
+           ++ left. symmetry. exact H.
+           ++ destruct H as [H | H].
+              ** left. exact H.
+              ** right. exact H.
       * (* x > z *)
-        simpl.
-        rewrite IH.
-        tauto.
+        split.
+        -- intro H. simpl in H. destruct H as [H | H].
+           ++ right. left. exact H.
+           ++ rewrite IH in H. destruct H as [H | H].
+              ** left. exact H.
+              ** right. right. exact H.
+        -- intro H. simpl. destruct H as [H | H].
+           ++ right. rewrite IH. left. exact H.
+           ++ destruct H as [H | H].
+              ** left. exact H.
+              ** right. rewrite IH. right. exact H.
 Qed.
 
 (** Element membership is preserved by toOrderedUnique *)
@@ -283,7 +328,15 @@ Proof.
   - simpl.
     rewrite mem_insertSorted.
     rewrite IH.
-    simpl. tauto.
+    (* Goal: x = y \/ In x rest <-> In x (y :: rest) *)
+    (* In x (y :: rest) simplifies to y = x \/ In x rest *)
+    split.
+    + intro H. simpl. destruct H as [H | H].
+      * left. symmetry. exact H.
+      * right. exact H.
+    + intro H. simpl in H. destruct H as [H | H].
+      * left. symmetry. exact H.
+      * right. exact H.
 Qed.
 
 (** * Main Theorem: Set-Sequence Equivalence *)
@@ -324,21 +377,21 @@ Qed.
 (** The transformation preserves subset membership for subset sum.
     This shows the transformation doesn't add any new elements that would
     affect subset sum computations when considering sets (not multisets). *)
-Theorem subset_sum_membership_preserved : forall l target subset,
+Theorem subset_sum_membership_preserved : forall l subset,
   (forall x, In x subset -> In x l) ->
   (forall x, In x subset -> In x (toOrderedUnique l)).
 Proof.
-  intros l target subset H x Hx.
+  intros l subset H x Hx.
   rewrite mem_toOrderedUnique.
   apply H. exact Hx.
 Qed.
 
 (** Reverse direction *)
-Theorem subset_sum_membership_preserved_rev : forall l target subset,
+Theorem subset_sum_membership_preserved_rev : forall l subset,
   (forall x, In x subset -> In x (toOrderedUnique l)) ->
   (forall x, In x subset -> In x l).
 Proof.
-  intros l target subset H x Hx.
+  intros l subset H x Hx.
   specialize (H x Hx).
   rewrite mem_toOrderedUnique in H.
   exact H.
