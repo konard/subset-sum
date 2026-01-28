@@ -117,6 +117,12 @@ const MAX_RANDOM_NUMBER: u64 = 64;
 const MAX_RANDOM_NUMBER_SET_SIZE: usize = 64;
 const MAX_RANDOM_TARGET: u64 = 256;
 
+// big settings for max_first_reduction
+// const MAX_RANDOM_NUMBER: u64 = 10240*2;
+// const MAX_RANDOM_NUMBER_SET_SIZE: usize = 10240*2;
+// const MAX_RANDOM_TARGET: u64 = MAX_RANDOM_NUMBER*2;
+
+// small settings for quick tests
 // const MAX_RANDOM_NUMBER: u64 = 16;
 // const MAX_RANDOM_NUMBER_SET_SIZE: usize = 8;
 // const MAX_RANDOM_TARGET: u64 = 64;
