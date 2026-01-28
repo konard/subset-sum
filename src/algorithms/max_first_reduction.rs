@@ -57,21 +57,38 @@ pub fn max_first_reduction(input: &InputSet, target: u64, verbose: bool) -> Algo
         target
     );
 
-    // Handle target = 0
+    // TODO: Why target < input.min is not enough?
     if target == 0 {
         verbose_log!(
             verbose,
             "[Max-First Reduction] Target is 0, returning empty subset"
         );
-        return AlgorithmResult::new(Some(Vec::new()), 0);
+        return AlgorithmResult::new(Some(Vec::new()), 1);
     }
 
-    // Filter numbers: keep only those <= target (input is already sorted and > 0)
+    if target < input.min {
+        verbose_log!(
+            verbose,
+            "[Max-First Reduction] Target {} < min {}, impossible",
+            target,
+            input.min
+        );
+        return AlgorithmResult::new(None, 0);
+    }
+
+    if target == input.min {
+        return AlgorithmResult::new(Some(vec![input.min]), 1);
+    }
+    if target == input.max {
+        return AlgorithmResult::new(Some(vec![input.max]), 1);
+    }
+
+    // Filter numbers: keep only those < target (input is already sorted and > 0)
     let sorted: Vec<u64> = input
         .numbers()
         .iter()
         .copied()
-        .filter(|&x| x <= target)
+        .filter(|&x| x < target)
         .collect();
 
     if sorted.is_empty() {
@@ -84,7 +101,7 @@ pub fn max_first_reduction(input: &InputSet, target: u64, verbose: bool) -> Algo
 
     verbose_log!(
         verbose,
-        "[Max-First Reduction] Filtered numbers (<= target): {:?}",
+        "[Max-First Reduction] Filtered numbers (< target): {:?}",
         sorted
     );
 
@@ -109,16 +126,6 @@ pub fn max_first_reduction(input: &InputSet, target: u64, verbose: bool) -> Algo
             "[Max-First Reduction] Target equals total sum, returning all numbers"
         );
         return AlgorithmResult::new(Some(sorted), 1);
-    }
-
-    // Check for single element solution
-    if sorted.contains(&target) {
-        verbose_log!(
-            verbose,
-            "[Max-First Reduction] Found single element solution: {}",
-            target
-        );
-        return AlgorithmResult::new(Some(vec![target]), 1);
     }
 
     // Precompute prefix sums for pruning (sum of elements 0..=i)
